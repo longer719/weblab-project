@@ -1,0 +1,128 @@
+body {
+    font-family: 'Montserrat', sans-serif;/*Montserrat', sans-serif;: 指定了全局字体为Montserrat*/
+    background-color: #f8f9fa;/* #f8f9fa;: 设置了网页的背景颜色为浅灰色（#f8f9fa）*/
+    background-image: url('sheshe.jpg');/*url('sheshe.jpg');: 设置了一个背景图像，路径为sheshe.jpg*/
+    background-size: cover;/*让背景图片完全覆盖整个屏幕，不管窗口大小如何，图片都会保持比例，直到最小一边覆盖整个背景区域*/
+    background-position: center;/*背景图片居中显示，无论窗口如何调整，图片始终以中心为基准显示。*/
+    background-repeat: no-repeat;/*防止背景图片重复，只显示一次。*/
+    background-attachment: fixed;/*使背景图片固定在视口中，即使用户滚动页面，背景图片也不会移动。*/
+    color: #343a40;/*设置了文本颜色为深灰色（#343a40），在整个页面中使用这种颜色*/
+}
+
+.hero-section {/*背景为一个渐变的半透明黑色覆盖层加上背景图片。文本居中对齐，并使用白色字体。这种设计使得文本在不同的背景下仍然可见*/
+    background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://via.placeholder.com/1500x500') no-repeat center center/cover;
+    height: 100vh;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.hero-section h1 {/**/
+    font-size: 4rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.hero-section p {/**/
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+}
+
+.hero-section .btn-primary {/**/
+    background-color: #ff6b6b;
+    border: none;
+}
+
+.section-title {/*用于页面中各个部分的标题，字体较大且粗体，并设置了上下的外边距。*/
+    margin: 50px 0 30px;
+    font-weight: bold;
+    font-size: 2rem;
+    color: #343a40;
+}
+
+.skills .progress-bar {/*设置了技能展示栏的进度条颜色为粉色*/
+    background-color: #ff4f8d;
+}
+
+.project-card img {
+    height: 200px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.project-card .card-body {
+    padding: 20px;
+}
+
+/* 修改了项目卡片中的按钮颜色，默认颜色为深灰色（#343a40），鼠标悬停时会变为红色（#ff6b6b）*/
+.project-card .btn-primary {
+    background-color: #343a40;
+    border: none;
+}
+
+.project-card .btn-primary:hover {
+    background-color: #ff4f8d;/*深粉色*/
+}
+
+.contact-section .btn-outline-dark {/*联系表单中的按钮默认边框为深灰色，鼠标悬停时变为红色背景和白色字体。*/
+    border-color: #343a40;
+    color: #343a40;
+}
+
+.contact-section .btn-outline-dark:hover {/*联系表单中的按钮默认边框为深灰色，鼠标悬停时变为红色背景和白色字体。*/
+    background-color: #ff4f8d;
+    border-color: #ff4f8d;
+    color: #fff;
+}
+
+.footer {/*页脚的背景为深色（#343a40），文本为白色，并设置了上下的内边距，内容居中对齐。*/
+    background-color: #343a40;
+    color: white;
+    padding: 20px 0;
+    text-align: center;
+    margin-top: 50px;
+}
+
+.hero-section {
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    height: 100vh;
+}
+
+
+
+.footer p {
+    margin: 0;
+}
+
+/* 确保 html 和 body 占满全屏 */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* 让内容容器的最小高度为100% - footer 的高度 */
+.content {
+    min-height: calc(100vh - 60px); /* 60px 是 footer 的高度 */
+    display: flex;
+    flex-direction: column;}
+
+/* 确保 footer 始终在页面底部 */
+.footer {
+    height: 60px; /* 固定高度 */
+    background-color: #343a40;
+    color: white;
+    padding: 20px 0;
+    text-align: center;
+    margin-top: auto; /* 自动分配剩余空间 */
+    width: 100%;
+    position: relative;
+    bottom: 0;
+}

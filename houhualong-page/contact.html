@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="styles.css" rel="stylesheet">
+    <title>Contact loong</title>
+    <!--window.location.href:这是用于在JavaScript中改变浏览器当前页面地址的属性。它可以用于导航到新页面、触发下载文件-->
+    <!--mailto:协议:当window.location.href设置为一个mailto:链接时，浏览器会尝试打开用户系统上默认的电子邮件客户端，并在新邮件中填入指定的电子邮件地址。-->
+    <script>
+        function sendEmail() {
+            window.location.href = 'mailto:is_loong@qq.com';
+        }
+    </script>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">loong</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="skills.html">Skills</a></li>
+                    <li class="nav-item"><a class="nav-link" href="projects.html">Projects</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contact Content -->
+    <section id="contact" class="container py-5">
+        <h2 class="section-title text-center">Contact Me</h2>
+        <p class="text-center">Feel free to reach out to me through the email link below.</p>
+        <div class="text-center">
+            <button class="btn btn-outline-dark" onclick="sendEmail()">Send Email</button>
+        </div>
+    </section>
+
+    <div style="visibility:hidden;">
+        <li></li>
+        <li></li>
+    </div>
+
+    <section id="contact" class="container py-5">
+        <h2 class="section-title text-center">日就月将 学有缉熙于光明</h2>
+        <h2 class="section-title text-center">日居月诸 金石为恒者而开</h2>
+        <div class="text-center">
+
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>&copy; 2024 loong. All rights reserved.</p>
+    </footer>
+</body>
+</html>
