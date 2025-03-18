@@ -1,0 +1,54 @@
+#configs/detector_training.yaml
+# 该配置文件用于训练病害检测器
+
+# 数据配置
+data:
+  data_dir: "data/processed"
+  batch_size: 8  # 检测任务每批次图像较少
+  train_split: 0.7
+  val_split: 0.1
+  test_split: 0.2
+  num_workers: 16  # 增加工作线程
+
+# # 注释掉数据过滤信息，使用全部数据
+# data_filter: "Corn,Grape,Orange" 
+# trained_plants: "玉米、葡萄、橙子"
+
+# 模型配置 - 适合全数据集的设置
+model:
+  backbone: "resnet50"  # 轻量级骨干网络，检测任务足够
+  num_classes: 38       # 全部PlantVillage类别
+  pretrained: true
+  min_size: 800         # 提高到800以检测更多细节
+  max_size: 1333
+  # 禁用自动计算锚框
+  compute_anchors: false
+  # 移除自定义锚框配置，使用默认设置
+  # anchor_sizes: ...
+  # anchor_ratios: ...
+  box_score_thresh: 0.3
+  box_nms_thresh: 0.45
+  rpn_nms_thresh: 0.7
+
+# 训练配置 - 针对RTX 4090D优化
+train:
+  epochs: 50            # 目标检测通常收敛较快
+  lr: 0.0005            # 轻微调整学习率
+  optimizer: "AdamW"
+  scheduler: "CosineAnnealingLR"
+  weight_decay: 0.0005
+  mixed_precision: true  # 使用混合精度加速训练
+  grad_accumulation_steps: 2  # 梯度累积，相当于加倍批次大小
+  seed: 42
+  warmup_epochs: 3
+  save_interval: 5
+  vis_samples: 10
+  early_stopping:
+    patience: 10
+    delta: 0.001
+    mode: 'max'  # 对于mAP，使用'max'模式
+    monitor: 'mAP'  # 使用mAP作为监控指标
+  device: "cuda"
+
+# 实验命名
+experiment_name: "disease_detector_v03_full_dataset"

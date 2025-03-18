@@ -1,0 +1,23 @@
+{
+  "healthy": "健康",
+  "Apple_scab": "黑星病",
+  "Black_rot": "黑腐病",
+  "Cedar_apple_rust": "雪松苹果锈病",
+  "Powdery_mildew": "白粉病",
+  "Cercospora_leaf_spot Gray_leaf_spot": "灰斑病",
+  "Common_rust": "普通锈病",
+  "Northern_Leaf_Blight": "北方叶枯病",
+  "Esca_(Black_Measles)": "黑麻疹病",
+  "Leaf_blight_(Isariopsis_Leaf_Spot)": "叶枯病",
+  "Haunglongbing_(Citrus_greening)": "黄龙病",
+  "Bacterial_spot": "细菌性斑点病",
+  "Early_blight": "早疫病",
+  "Late_blight": "晚疫病",
+  "Leaf_Mold": "叶霉病",
+  "Septoria_leaf_spot": "斑枯病",
+  "Spider_mites Two-spotted_spider_mite": "二斑叶螨",
+  "Target_Spot": "靶斑病",
+  "Tomato_mosaic_virus": "花叶病毒病",
+  "Tomato_Yellow_Leaf_Curl_Virus": "黄化曲叶病毒病",
+  "Leaf_scorch": "叶焦病"
+}

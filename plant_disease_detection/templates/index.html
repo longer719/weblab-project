@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>植物种类识别与病害检测系统</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>植物种类识别与病害检测系统</h1>
+            <p class="subtitle">为农业工作者、园艺爱好者提供的专业植物健康评估工具</p>
+            <p class="system-scope">基于PlantVillage数据集，专注于14种常见农作物及其38种病害</p>
+            <div class="system-info">
+                <details>
+                    <summary>系统说明与使用范围</summary>
+                    <div class="info-content">
+                        <p>本系统能够识别的植物种类包括：苹果、蓝莓、樱桃、玉米、葡萄、橙子、桃子、甜椒、土豆、树莓、大豆、西葫芦、草莓、番茄。</p>
+                        <p>能够检测的主要病害包括各类真菌性、细菌性和病毒性病害，如黑星病、锈病、叶斑病等。</p>
+                        <p>使用说明：上传清晰的植物叶片照片，选择合适的任务类型进行分析。</p>
+                    </div>
+                </details>
+            </div>
+        </header>
+
+        <div class="task-selection">
+            <button class="task-switch active" data-task="classification">植物种类识别</button>
+            <button class="task-switch" data-task="detection">病害检测</button>
+        </div>
+
+        <!-- 修改状态消息div，确保支持新的类型样式 -->
+        <div id="status-message" class="status-message info">请上传图像以进行植物识别或病害检测</div>
+
+        <div class="upload-section">
+            <div id="drop-zone" class="drop-zone">
+                <img src="/static/images/upload.svg" alt="上传图标" class="upload-icon">
+                <p>拖放图像到此处或点击上传</p>
+                <input type="file" id="file-input" accept="image/jpeg,image/png,image/jpg" style="display: none;">
+            </div>
+            <div id="preview-container" class="preview-container" style="display: none;"></div>
+            <button id="submit-button" class="action-button primary" disabled>
+                <i class="fas fa-leaf"></i> 开始分析
+            </button>
+        </div>
+
+        <div id="results-container" class="results-container"></div>
+
+        <footer class="footer">
+            <p>© 2025 植物种类识别与病害检测系统 | <a href="#" id="show-disclaimer">使用声明</a></p>
+        </footer>
+
+        <div id="disclaimer-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>使用声明</h3>
+                <p>  本系统仅供参考，不能替代专业植物病理学家的诊断。在处理严重植物病害时，请咨询专业人士。</p>
+                <p>  系统基于有限的数据集训练，可能无法识别所有植物种类和病害。</p>
+                <p>  治疗建议仅供参考，使用任何农药或处理方法前，请确认其安全性和适用性。</p>
+            </div>
+        </div>
+
+        <!-- 在body标签结束前添加以下模态框结构 -->
+        <div id="treatment-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div id="modal-body">
+                    <!-- 治疗详情将动态加载到这里 -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 加载脚本 -->
+    <script src="/static/js/visualization.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

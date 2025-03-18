@@ -1,0 +1,24 @@
+﻿# 忽略数据和模型文件
+plant_disease_detection/data/
+plant_disease_detection/data/**
+plant_disease_detection/experiments/
+plant_disease_detection/experiments/**
+plant_disease_detection/models_backup_firstmode_20250311/
+plant_disease_detection/evaluation_results_20250311/
+
+# 忽略常见的大文件类型
+**/*.pth
+**/*.h5
+**/*.pt
+**/*.pkl
+**/*.onnx
+**/*.mlmodel
+**/*.tflite
+**/*.jpg
+**/*.jpeg
+**/*.png
+**/*.gif
+**/*.zip
+**/*.tar.gz
+**/*.rar
+**/*.tfevents.*

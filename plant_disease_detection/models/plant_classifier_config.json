@@ -1,0 +1,8 @@
+{
+  "num_classes": 38,
+  "backbone": "resnet101",
+  "dropout_rate": 0.4,
+  "is_multilabel": false,
+  "freeze_layers": null,
+  "head_config": {}
+}

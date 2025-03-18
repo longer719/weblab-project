@@ -1,0 +1,47 @@
+# 创建正确的.gitignore文件
+@"
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 数据和模型文件
+plant_disease_detection/data/
+plant_disease_detection/data/**
+plant_disease_detection/experiments/
+plant_disease_detection/experiments/**
+plant_disease_detection/models_backup_firstmode_20250311/
+plant_disease_detection/evaluation_results_20250311/
+
+# 忽略常见的大文件类型
+**/*.pth
+**/*.h5
+**/*.pt
+**/*.pkl
+**/*.onnx
+**/*.mlmodel
+**/*.tflite
+**/*.jpg
+**/*.jpeg
+**/*.png
+**/*.gif
+**/*.zip
+**/*.tar.gz
+**/*.rar
+**/*.tfevents.*
+
+# 系统
+.DS_Store
+Thumbs.db
+"@ | Out-File -FilePath .gitignore -Encoding utf8

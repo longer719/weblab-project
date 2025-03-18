@@ -1,0 +1,42 @@
+# configs/classifier_training.yaml
+# 数据配置
+data:
+  data_dir: "data/processed"
+  batch_size: 64  # 适合24GB显存的RTX 4090D
+  train_split: 0.7
+  val_split: 0.1
+  test_split: 0.2
+  num_workers: 16  # 增加工作线程利用多核CPU
+
+# 注释掉数据过滤信息，使用全部数据
+# data_filter: "Corn,Grape,Orange" 
+# trained_plants: "玉米、葡萄、橙子"
+
+# 模型配置 - 使用更强大的骨干网络
+model:
+  backbone: "resnet101"  # 使用深层网络更好地捕获丰富的特征
+  num_classes: 38       # 全部PlantVillage类别
+  pretrained: true
+  dropout_rate: 0.4     # 轻微增加dropout防止过拟合
+  in_channels: 3
+
+# 训练配置 - 针对RTX 4090D优化
+train:
+  epochs: 100           # 充分训练
+  lr: 0.0001           # 稍小的学习率以稳定训练
+  optimizer: "AdamW"
+  scheduler: "OneCycleLR"  # 高效的学习率调度
+  weight_decay: 0.01    # 正则化
+  mixed_precision: true # 使用混合精度训练加速
+  seed: 42
+  warmup_epochs: 5
+  save_interval: 5      # 每5个epoch保存一次
+  early_stopping:
+    patience: 15        # 增加耐心值
+    delta: 0.001
+    mode: 'max'
+    monitor: 'val_acc'
+  device: "cuda"
+
+# 实验命名
+experiment_name: "plant_classifier_v03_full_dataset"
