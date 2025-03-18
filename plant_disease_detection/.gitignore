@@ -1,5 +1,5 @@
 # 创建正确的.gitignore文件
-@"
+"
 # Python
 __pycache__/
 *.py[cod]
@@ -44,4 +44,3 @@ plant_disease_detection/evaluation_results_20250311/
 # 系统
 .DS_Store
 Thumbs.db
-"@ | Out-File -FilePath .gitignore -Encoding utf8
