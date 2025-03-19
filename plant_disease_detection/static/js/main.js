@@ -423,14 +423,18 @@ function displayClassificationResults(results, container) {
     
     // 获取主要预测结果
     const topPrediction = results.predictions[0];
-    const fullClassName = topPrediction.class_name;
-    // 提取纯植物类型名称
-    const plantType = extractPlantType(fullClassName);
     
-    // 显示植物名称和置信度（显示原始分类结果，但存储的植物类型为提取后的纯植物名称）
+    // 使用纯植物名称(已经在后端提取)
+    const plantType = topPrediction.class_name;
+    
+    // 获取植物描述
+    const plantDescription = results.plant_info && results.plant_info.description ? 
+                           results.plant_info.description : '无植物描述';
+    
+    // 显示植物名称和置信度
     resultCard.innerHTML = `
         <div class="result-header">
-            <h4>${plantType}</h4>  <!-- 这里使用纯植物名称 -->
+            <h4>${plantType}</h4>
             <div class="confidence">
                 <span class="confidence-value">${(topPrediction.confidence * 100).toFixed(2)}%</span>
                 <div class="confidence-bar">
@@ -440,7 +444,7 @@ function displayClassificationResults(results, container) {
         </div>
         <div class="result-details">
             <div class="plant-info">
-                <p class="plant-description">${results.plant_info?.description || '无植物描述'}</p>
+                <p class="plant-description">${plantDescription}</p>
                 
                 ${results.plant_info && results.plant_info.general_care && results.plant_info.general_care.length > 0 ? `
                 <div class="general-care">
@@ -448,15 +452,6 @@ function displayClassificationResults(results, container) {
                     <ul class="care-list">
                         ${results.plant_info.general_care.map(tip => `<li>${tip}</li>`).join('')}
                     </ul>
-                </div>
-                ` : ''}
-                
-                ${results.plant_info && results.plant_info.detailed_info ? `
-                <div class="detailed-info">
-                    <h5>详细信息：</h5>
-                    <p><strong>生长条件：</strong> ${results.plant_info.detailed_info.生长条件 || '暂无信息'}</p>
-                    <p><strong>常见品种：</strong> ${results.plant_info.detailed_info.常见品种 || '暂无信息'}</p>
-                    <p><strong>经济价值：</strong> ${results.plant_info.detailed_info.经济价值 || '暂无信息'}</p>
                 </div>
                 ` : ''}
             </div>
@@ -487,7 +482,7 @@ function displayClassificationResults(results, container) {
     // 添加到容器
     container.appendChild(resultCard);
     
-    // 更新应用状态中保存的植物类型（保存纯植物类型，不含病害信息）
+    // 更新应用状态中保存的植物类型
     appState.detectedPlantType = plantType;
     appState.plantIdentified = true;
     appState.detectionReady = true;

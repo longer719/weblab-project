@@ -1,5 +1,3 @@
-# 创建正确的.gitignore文件
-"
 # Python
 __pycache__/
 *.py[cod]

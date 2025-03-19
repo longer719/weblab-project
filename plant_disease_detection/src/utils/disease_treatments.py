@@ -592,6 +592,11 @@ class DiseaseTreatmentDatabase:
         result = {}
         if "overview" in self.treatments[plant]:
             result = self.treatments[plant]["overview"].copy()
+        else:
+            result = {
+                "description": f"未找到{plant_type}的详细描述",
+                "general_care": []
+            }
         
         # 添加常见病害列表
         result["common_diseases"] = []

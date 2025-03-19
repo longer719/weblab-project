@@ -152,6 +152,99 @@ def create_predictor():
             except Exception as e:
                 traceback.print_exc()
                 return {"error": f"检测失败: {str(e)}", "detections": []}
+        
+        def _process_detections(self, output, plant_type=None):
+            """处理检测输出结果为友好格式"""
+            import torch
+            
+            try:
+                # 确保有输出且格式正确
+                if not output or not isinstance(output, dict):
+                    return {"error": "无效的检测结果", "detections": []}
+                
+                # 获取边界框、置信度和标签
+                boxes = output.get('boxes', torch.tensor([]))
+                scores = output.get('scores', torch.tensor([]))
+                labels = output.get('labels', torch.tensor([]))
+                
+                # 获取图像尺寸
+                image_size = output.get('image_size', (0, 0))
+                width, height = image_size
+                
+                # 获取类别名称映射
+                disease_class_names = getattr(current_app, 'disease_class_names', {})
+                
+                # 构建检测结果
+                detections = []
+                for i, (box, score, label) in enumerate(zip(boxes.tolist(), scores.tolist(), labels.tolist())):
+                    # 获取类别名称
+                    label_str = str(int(label))
+                    class_name = disease_class_names.get(label_str, f"未知类别-{label}")
+                    
+                    # 计算边界框信息
+                    x1, y1, x2, y2 = box
+                    x = max(0, min(x1, width))
+                    y = max(0, min(y1, height))
+                    w = max(0, min(x2 - x1, width - x))
+                    h = max(0, min(y2 - y1, height - y))
+                    
+                    # 确定疾病严重程度
+                    severity = "unknown"
+                    if class_name == "健康":
+                        severity = "healthy"
+                    elif score > 0.8:
+                        severity = "severe"
+                    elif score > 0.6:
+                        severity = "moderate"
+                    else:
+                        severity = "mild"
+                    
+                    # 创建检测对象
+                    detection = {
+                        "id": i,
+                        "bbox": {"x": x, "y": y, "width": w, "height": h},
+                        "score": score,
+                        "label": label,
+                        "class_name": class_name,
+                        "severity": severity
+                    }
+                    
+                    # 如果提供了植物类型，添加到检测结果中
+                    if plant_type:
+                        detection["plant_type"] = plant_type
+                    
+                    detections.append(detection)
+                
+                # 如果有植物类型和检测结果，添加治疗建议
+                treatment_recommendations = []
+                if plant_type and detections:
+                    # 获取检测到的所有病害
+                    diseases = [det["class_name"] for det in detections if det["class_name"] != "健康"]
+                    
+                    # 如果检测到病害，获取治疗建议
+                    if diseases:
+                        for disease in diseases:
+                            treatment = treatment_db.get_treatment(plant_type, disease)
+                            if treatment and "treatments" in treatment:
+                                treatment_recommendations.extend(treatment["treatments"])
+                    
+                    # 如果没有病害或无法获取治疗建议
+                    if not treatment_recommendations:
+                        if any(det["class_name"] == "健康" for det in detections):
+                            treatment_recommendations = ["植株健康，无需特殊处理", "保持良好的栽培实践"]
+                
+                # 返回最终结果
+                return {
+                    "detections": detections,
+                    "count": len(detections),
+                    "image_dimensions": {"width": width, "height": height},
+                    "treatment_recommendations": treatment_recommendations
+                }
+            
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return {"error": f"处理检测结果出错: {str(e)}", "detections": []}
     
     # 返回组合预测器
     return CombinedPredictor(
@@ -206,18 +299,28 @@ def classify_plant():
         results = predictor.classify(image_bytes)
         
         # 如果分类结果包含"-"，表示是"植物-病害"格式，添加纯植物名称
-        if '-' in results['class_name']:
+        if 'class_name' in results and '-' in results['class_name']:
             plant_only = results['class_name'].split('-')[0]
             logger.info(f"从分类结果中提取纯植物类型: {plant_only}，原始结果: {results['class_name']}")
             
-            # 保存完整结果作为额外信息
+            # 保存原始结果
             results['full_class_name'] = results['class_name']
-            
-            # 前端展示仍保持原样，让前端处理如何显示
+            # 更新为仅植物类型
+            results['class_name'] = plant_only
         
-        # 继续处理结果
+        # 获取植物详细信息
+        plant_info = treatment_db.get_plant_info(results['class_name'])
+        results['plant_info'] = plant_info
+        
+        # 对预测列表中的其他条目也提取纯植物名称
+        if 'predictions' in results:
+            for pred in results['predictions']:
+                if '-' in pred['class_name']:
+                    pred['full_class_name'] = pred['class_name']
+                    pred['class_name'] = pred['class_name'].split('-')[0]
+        
         return jsonify(results)
-        
+    
     except Exception as e:
         logger.error(f"分类过程中出错: {e}")
         return jsonify({"error": f"分类失败: {str(e)}", "class_name": "未知", "confidence": 0}), 500

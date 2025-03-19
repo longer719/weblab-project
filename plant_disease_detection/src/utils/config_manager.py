@@ -105,3 +105,22 @@ class ConfigManager:
         if config_dict is not None and key in config_dict:
             return config_dict[key]
         return self.get(key, default, config_type)
+    
+    def _update_config(self, config):
+        """更新配置"""
+        for key, value in config.items():
+            if isinstance(value, dict):
+                # 处理嵌套字典
+                for sub_key, sub_value in value.items():
+                    config_type = key if key in ["data", "model", "train"] else "data"
+                    full_key = sub_key if key in ["data", "model", "train"] else f"{key}_{sub_key}"
+                    self.override(full_key, sub_value, config_type)
+            else:
+                # 处理普通键值
+                config_type = "data"  # 默认类型
+                if key.startswith("model_") or key == "task":
+                    config_type = "model"
+                elif key.startswith("train_"):
+                    config_type = "train"
+                
+                self.override(key, value, config_type)
