@@ -459,7 +459,9 @@ function displayClassificationResults(results, container) {
             <div class="other-predictions">
                 <h5>其他可能的植物种类：</h5>
                 <ul class="predictions-list">
-                    ${results.predictions.slice(1, 4).map(pred => `
+                    ${results.predictions.slice(1, 4)
+                      .filter(pred => extractPlantType(pred.class_name) !== extractPlantType(topPrediction.class_name))
+                      .map(pred => `
                         <li>
                             <span class="prediction-name">${pred.class_name}</span>
                             <span class="prediction-confidence">${(pred.confidence * 100).toFixed(2)}%</span>

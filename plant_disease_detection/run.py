@@ -428,51 +428,32 @@ def main():
         disease_mappings_path = normalize_path(os.path.join('models', 'disease_mappings.json'))
 
         try:
-            # 尝试加载所有映射文件
-            
-            # 加载植物类别映射
+            # 修改这里，确保正确加载每个文件
             if os.path.exists(class_names_path):
                 with open(class_names_path, 'r', encoding='utf-8') as f:
-                    class_map = json.load(f)
-                    app.class_mapping = class_map
-                    app.class_names = list(class_map.values())
-                    logger.info(f"从{class_names_path}加载了{len(app.class_names)}个植物类别")
-            else:
-                # 默认植物类别
-                default_classes = ["苹果", "蓝莓", "樱桃", "玉米", "葡萄", "橙子", "桃子", 
-                                "甜椒", "土豆", "树莓", "大豆", "西葫芦", "草莓", "番茄"]
-                app.class_mapping = {str(i): name for i, name in enumerate(default_classes)}
-                app.class_names = default_classes
-                logger.info("使用默认的14种植物类名")
-            
-            # 加载病害类别映射
+                    app.plant_class_names = json.load(f)
+                    logger.info(f"从{class_names_path}加载了{len(app.plant_class_names)}个植物类别")
+                    
             if os.path.exists(disease_names_path):
                 with open(disease_names_path, 'r', encoding='utf-8') as f:
-                    disease_map = json.load(f)
-                    app.disease_mapping = disease_map
-                    app.disease_class_names = list(disease_map.values())
+                    app.disease_class_names = json.load(f)
                     logger.info(f"从{disease_names_path}加载了{len(app.disease_class_names)}个病害类别")
-            else:
-                # 默认病害类别
-                app.disease_class_names = ["健康", "早疫病", "晚疫病", "锈病", "黑星病", "花叶病毒"]
-                logger.info("使用默认病害类别")
-            
-            # 加载植物英文名到中文名的映射
+                    
             if os.path.exists(plant_mappings_path):
                 with open(plant_mappings_path, 'r', encoding='utf-8') as f:
                     app.plant_mappings = json.load(f)
                     logger.info(f"加载了{len(app.plant_mappings)}个植物名称映射")
-            
-            # 加载病害英文名到中文名的映射
+                    
             if os.path.exists(disease_mappings_path):
                 with open(disease_mappings_path, 'r', encoding='utf-8') as f:
                     app.disease_mappings = json.load(f)
                     logger.info(f"加载了{len(app.disease_mappings)}个病害名称映射")
-                    
         except Exception as e:
-            logger.error(f"加载类名时出错: {e}")
-            app.class_names = [f"植物类别{i}" for i in range(10)]
-            app.disease_class_names = [f"病害类别{i}" for i in range(5)]
+            logger.error(f"加载映射文件时出错: {e}")
+            app.plant_class_names = {}
+            app.disease_class_names = {}
+            app.plant_mappings = {}
+            app.disease_mappings = {}
         
         # 获取服务配置
         host = config_manager.get('API_HOST', '0.0.0.0', "api")
