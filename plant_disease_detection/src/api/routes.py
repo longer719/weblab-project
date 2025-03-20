@@ -126,7 +126,7 @@ def create_predictor():
                     transform = get_transform(train=False)
                     
                     # 应用转换并添加批次维度
-                    image_tensor = transform(image).unsqueeze(0)
+                    image_tensor = transform(image).unsqueeze(0).to(self.device)
                     
                     # 将tensor移到与模型相同的设备上
                     device = next(self.detector.parameters()).device
@@ -135,9 +135,10 @@ def create_predictor():
                     # 确保模型处于评估模式
                     self.detector.eval()
                     
-                    # 执行预测
+                    # 执行预测 - 修改这里，从4D张量[1,C,H,W]提取出3D张量[C,H,W]作为列表元素
                     with torch.no_grad():
-                        prediction = self.detector([image_tensor])
+                        # 关键修改：传递正确格式的张量列表
+                        prediction = self.detector([image_tensor[0]])
                         
                     # 第一个(也是唯一的)图像的预测结果
                     if prediction and len(prediction) > 0:
@@ -153,6 +154,7 @@ def create_predictor():
                     return {"error": "检测模型未加载", "detections": []}
                 
             except Exception as e:
+                import traceback
                 traceback.print_exc()
                 return {"error": f"检测失败: {str(e)}", "detections": []}
         
