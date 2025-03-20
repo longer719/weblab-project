@@ -401,6 +401,12 @@ def detect_diseases():
 
         # 更新结果
         results["detections"] = filtered_detections
+
+        # 修改输出处理，使用植物-病害组合的映射
+        for detection in results["detections"]:
+            # 使用plant_classes.json中的映射
+            class_id = detection.get("label", 0)
+            detection["class_name"] = mapping_service.get_plant_name(class_id)  # 获取完整的"植物-病害"名称
         
         return jsonify(results)
     

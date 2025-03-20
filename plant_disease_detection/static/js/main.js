@@ -598,159 +598,14 @@ function showPlantInfo(plantType) {
  * 显示检测结果
  */
 function displayDetectionResults(results, container) {
-    // 创建检测结果卡片 (保留原有卡片显示)
-    const resultCard = document.createElement('div');
-    resultCard.className = 'result-card detection-result';
-    
-    // 获取检测结果数据
-    const detections = results.detections || [];
-    const severityInfo = results.severity_assessment || { level: '未知', description: '无法评估' };
-    
-    // 显示检测结果和严重程度
-    resultCard.innerHTML = `
-        <div class="result-header">
-            <h4>检测到 ${detections.length} 个病害区域</h4>
-            <div class="severity-badge ${severityInfo.level ? severityInfo.level.toLowerCase() : 'unknown'}">
-                严重程度: ${severityInfo.level || '未知'}
-            </div>
-        </div>
-        <div class="result-details">
-            <div class="detection-summary">
-                <h5>病害摘要：</h5>
-                <p>${severityInfo.description || '无详细描述'}</p>
-                <ul class="disease-list">
-                    ${detections.map(det => `
-                        <li>
-                            <span class="disease-name">${det.class_name}</span>
-                            <span class="disease-confidence">${(det.score * 100).toFixed(2)}%</span>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-        </div>
-    `;
-    
-    // 添加到容器
-    container.appendChild(resultCard);
-    
-    // 添加治疗信息卡片（如果有）
-    if (results.treatment_info) {
-        const treatmentCard = document.createElement('div');
-        treatmentCard.className = 'treatment-card';
-        
-        // 获取治疗信息
-        const treatment = results.treatment_info;
-        const plantName = treatment.plant_name || '未知植物';
-        const diseaseName = treatment.disease_name || '未知病害';
-        
-        // 构建治疗信息HTML
-        let treatmentHtml = `
-            <div class="treatment-header">
-                <h4>${plantName}的${diseaseName}治疗方案</h4>
-            </div>
-            <div class="treatment-content">`;
-        
-        // 添加症状部分
-        if (treatment.symptoms && treatment.symptoms.length > 0) {
-            treatmentHtml += `
-                <section>
-                    <h5>症状表现：</h5>
-                    <ul class="symptom-list">
-                        ${treatment.symptoms.map(symptom => `<li>${symptom}</li>`).join('')}
-                    </ul>
-                </section>`;
-        }
-        
-        // 添加病因部分
-        if (treatment.causes && treatment.causes.length > 0) {
-            treatmentHtml += `
-                <section>
-                    <h5>病害原因：</h5>
-                    <p>${treatment.causes.join(', ')}</p>
-                </section>`;
-        }
-        
-        // 添加治疗方法部分
-        if (treatment.treatments && treatment.treatments.length > 0) {
-            treatmentHtml += `
-                <section>
-                    <h5>推荐治疗方法：</h5>
-                    <ul class="treatment-list">
-                        ${treatment.treatments.map(method => `<li>${method}</li>`).join('')}
-                    </ul>
-                </section>`;
-        }
-        
-        // 添加预防措施部分
-        if (treatment.prevention && treatment.prevention.length > 0) {
-            treatmentHtml += `
-                <section>
-                    <h5>预防措施：</h5>
-                    <ul class="prevention-list">
-                        ${treatment.prevention.map(tip => `<li>${tip}</li>`).join('')}
-                    </ul>
-                </section>`;
-        }
-        
-        treatmentHtml += `</div>`;
-        
-        // 设置卡片内容
-        treatmentCard.innerHTML = treatmentHtml;
-        
-        // 添加点击事件，显示详细信息
-        treatmentCard.addEventListener('click', function() {
-            showDetailedTreatment(treatment);
-        });
-        
-        // 添加到容器
-        container.appendChild(treatmentCard);
-        
-        // 显示治疗提示（如果用户之前没有关闭过）
-        if (!localStorage.getItem('treatment-tip-dismissed')) {
-            showTreatmentTip(container);
-        }
-    } else if (results.treatment_recommendations && results.treatment_recommendations.length > 0) {
-        // 如果有治疗建议但没有完整治疗信息，显示简化版本
-        const recommendationsDiv = document.createElement('div');
-        recommendationsDiv.className = 'treatment-recommendations';
-        recommendationsDiv.innerHTML = `
-            <h5>治疗建议：</h5>
-            <ul>
-                ${results.treatment_recommendations.map(rec => `<li>${rec}</li>`).join('')}
-            </ul>
-        `;
-        container.appendChild(recommendationsDiv);
-    }
-    
-    // 添加可视化容器
-    const visContainer = document.createElement('div');
-    visContainer.id = 'visualization-container';
-    visContainer.className = 'visualization-container';
-    container.appendChild(visContainer);
-    
-    // 准备用于可视化的图像对象
-    const originalImage = document.querySelector('.preview-image');
-    
-    if (originalImage && detections.length > 0) {
-        // 如果已经加载了PlantVis可视化组件，则使用它显示检测框
-        if (typeof PlantVis !== 'undefined') {
-            // 准备检测框数据
-            const boxData = detections.map(det => ({
-                box: [det.bbox.x, det.bbox.y, det.bbox.x + det.bbox.width, det.bbox.y + det.bbox.height],
-                score: det.score,
-                class_name: det.class_name,
-                severity: det.severity || 'unknown'
-            }));
-            
-            // 渲染检测框
-            const canvas = PlantVis.renderDetectionBoxes(originalImage, boxData);
-            PlantVis.displayVisualization(visContainer, canvas, {
-                interactive: true,
-                allowThresholdChange: true,
-                visModes: ['boxes', 'heatmap']
-            });
-        }
-    }
+    const detections = results.detections;
+    // 使用完整的植物-病害名称进行展示
+    detections.map(det => `
+        <li>
+            <span class="disease-name">${det.class_name}</span>
+            <span class="disease-confidence">${(det.score * 100).toFixed(2)}%</span>
+        </li>
+    `).join('')
 }
 
 /**
@@ -1401,6 +1256,18 @@ function showPlantDiseaseLibrary(plantType) {
             updateStatusMessage('获取植物病害信息失败，请重试', 'error');
         });
 }
+
+// 当需要查询治疗信息时
+const fullName = detection.class_name;  // 如"苹果-黑星病"
+const [plantType, diseaseName] = fullName.split('-');  // 分离为"苹果"和"黑星病"
+
+// 然后查询治疗信息
+fetch(`/api/treatment?plant=${encodeURIComponent(plantType)}&disease=${encodeURIComponent(diseaseName)}`)
+    .then(res => res.json())
+    .then(treatmentData => {
+        // 显示详细治疗信息
+        showDetailedTreatment(treatmentData);
+    });
 
 // 页面加载完成后初始化应用
 document.addEventListener('DOMContentLoaded', function() {
