@@ -424,8 +424,11 @@ function displayClassificationResults(results, container) {
     // 获取主要预测结果
     const topPrediction = results.predictions[0];
     
-    // 使用纯植物名称(已经在后端提取)
-    const plantType = topPrediction.class_name;
+    // 提取纯植物名称（去除可能的病害部分）
+    let plantType = topPrediction.class_name;
+    if (plantType.includes('-')) {
+        plantType = plantType.split('-')[0].trim();
+    }
     
     // 获取植物描述
     const plantDescription = results.plant_info && results.plant_info.description ? 
@@ -459,14 +462,19 @@ function displayClassificationResults(results, container) {
             <div class="other-predictions">
                 <h5>其他可能的植物种类：</h5>
                 <ul class="predictions-list">
-                    ${results.predictions.slice(1, 4)
-                      .filter(pred => extractPlantType(pred.class_name) !== extractPlantType(topPrediction.class_name))
-                      .map(pred => `
+                    ${results.predictions.slice(1, 4).map(pred => {
+                        // 提取纯植物名称
+                        let predPlantType = pred.class_name;
+                        if (predPlantType.includes('-')) {
+                            predPlantType = predPlantType.split('-')[0].trim();
+                        }
+                        return `
                         <li>
-                            <span class="prediction-name">${pred.class_name}</span>
+                            <span class="prediction-name">${predPlantType}</span>
                             <span class="prediction-confidence">${(pred.confidence * 100).toFixed(2)}%</span>
                         </li>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </ul>
             </div>
             

@@ -578,6 +578,13 @@ class DiseaseTreatmentDatabase:
         Returns:
             植物信息字典
         """
+        # 如果植物类型格式不正确（如"类别0"），返回通用信息
+        if "类别" in plant_type:
+            return {
+                "description": f"未识别的植物类型: {plant_type}",
+                "general_care": ["请先正确识别植物类型"]
+            }
+        
         # 标准化植物名称
         plant = self._normalize_name(plant_type)
         
@@ -608,31 +615,37 @@ class DiseaseTreatmentDatabase:
 
     def is_disease_compatible_with_plant(self, plant_type: str, disease_name: str) -> bool:
         """检查病害是否与特定植物兼容"""
+        # 如果植物类型格式不正确（如"类别0"），不进行过滤
+        if "类别" in plant_type:
+            return True
+        
         # "健康"状态与所有植物兼容
         if disease_name == "健康":
             return True
             
-        # 植物-病害兼容性表（根据实际情况调整）
-        compatibility = {
-            "苹果": ["黑星病", "黑腐病", "雪松苹果锈病"],
-            "樱桃": ["白粉病"],
-            "玉米": ["灰斑病", "普通锈病", "北方叶枯病"],
-            "葡萄": ["黑腐病", "黑麻疹病", "叶枯病"],
-            "橙子": ["黄龙病"],
-            "桃子": ["细菌性斑点病"],
-            "甜椒": ["细菌性斑点病"],
-            "土豆": ["早疫病", "晚疫病"],
-            "草莓": ["叶焦病"],
-            "番茄": ["细菌性斑点病", "早疫病", "晚疫病", "叶霉病", "斑枯病", "二斑叶螨", "靶斑病", "花叶病毒病", "黄化曲叶病毒病"]
-        }
+        # 使用映射服务中的映射加载
+        try:
+            # 尝试加载兼容性配置文件
+            import json
+            import os
+            compatibility_path = os.path.join('models', 'disease_compatibility.json')
+            
+            if os.path.exists(compatibility_path):
+                with open(compatibility_path, 'r', encoding='utf-8') as f:
+                    plant_disease_map = json.load(f)
+                    
+                # 标准化植物名称以便比较
+                plant_key = None
+                for key in plant_disease_map:
+                    if key.lower() in plant_type.lower() or plant_type.lower() in key.lower():
+                        plant_key = key
+                        break
+                
+                if plant_key:
+                    compatible_diseases = plant_disease_map[plant_key]
+                    return disease_name in compatible_diseases
+        except Exception as e:
+            logger.error(f"加载病害兼容性配置时出错: {str(e)}")
         
-        # 标准化名称以便比较
-        norm_plant = plant_type.lower().strip()
-        norm_disease = disease_name.lower().strip()
-        
-        # 检查兼容性
-        for plant, diseases in compatibility.items():
-            if plant.lower() in norm_plant or norm_plant in plant.lower():
-                return any(d.lower() in norm_disease or norm_disease in d.lower() for d in diseases)
-        
-        return False  # 如果找不到匹配，默认不兼容
+        # 默认情况下，允许任何病害（宽松策略，确保功能可用）
+        return True

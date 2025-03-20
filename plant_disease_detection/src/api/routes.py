@@ -70,30 +70,29 @@ def create_predictor():
                         outputs = self.classifier(image_tensor)
                         probabilities = torch.softmax(outputs, dim=1)[0]
                         
-                        # 获取类名
-                        class_mapping = getattr(current_app, 'class_mapping', {})
-                        class_names = getattr(current_app, 'class_names', [f"类别{i}" for i in range(10)])
-                        
                         # 获取最可能的类别
                         score, class_idx = torch.max(probabilities, dim=0)
                         
-                        # 使用映射获取类名
+                        # 获取类别映射
+                        plant_class_names = getattr(current_app, 'plant_class_names', {})
+                        
+                        # 将索引转换为字符串以匹配JSON键
                         idx_str = str(class_idx.item())
-                        class_name = class_mapping.get(idx_str, f"类别{class_idx.item()}")
+                        class_name = plant_class_names.get(idx_str, f"类别{class_idx.item()}")
                         
                         # 构建预测列表
                         predictions = []
                         for i, prob in enumerate(probabilities):
-                            idx_str = str(i)
-                            if i < len(probabilities):
-                                predictions.append({
-                                    "class_name": class_mapping.get(idx_str, f"类别{i}"),
-                                    "confidence": prob.item()
-                                })
+                            i_str = str(i)
+                            class_n = plant_class_names.get(i_str, f"类别{i}")
+                            predictions.append({
+                                "class_name": class_n,
+                                "confidence": prob.item()
+                            })
                         
                         result = {
                             "predictions": sorted(predictions, key=lambda x: x["confidence"], reverse=True),
-                            "class_name": class_name,  # 这里添加了class_name字段
+                            "class_name": class_name,
                             "top_result": class_name,
                             "confidence": score.item()
                         }
@@ -111,10 +110,10 @@ def create_predictor():
         
         def detect(self, image_bytes, plant_type=None):
             """检测预测，添加plant_type参数"""
-            from PIL import Image
             import io
             import torch
             import traceback
+            from PIL import Image
             
             try:
                 # 从字节流加载图像
@@ -126,38 +125,45 @@ def create_predictor():
                     # 获取转换函数
                     transform = get_transform(train=False)
                     
-                    # 转换图像，但不需要添加批次维度，因为检测模型会处理
-                    image_tensor = transform(image)
+                    # 应用转换并添加批次维度
+                    image_tensor = transform(image).unsqueeze(0)
                     
                     # 将tensor移到与模型相同的设备上
                     device = next(self.detector.parameters()).device
                     image_tensor = image_tensor.to(device)
                     
+                    # 确保模型处于评估模式
+                    self.detector.eval()
+                    
                     # 执行预测
                     with torch.no_grad():
                         prediction = self.detector([image_tensor])
                         
-                    # 添加图像尺寸信息
+                    # 第一个(也是唯一的)图像的预测结果
                     if prediction and len(prediction) > 0:
+                        # 添加图像尺寸信息
                         prediction[0]['image_size'] = (original_width, original_height)
                         
-                    # 处理预测结果
-                    processed_results = self._process_detections(prediction[0], plant_type)
-                    return processed_results
+                        # 处理预测结果
+                        processed_results = self._process_detections(prediction[0], plant_type)
+                        return processed_results
+                    else:
+                        return {"error": "检测模型未返回结果", "detections": []}
+                else:
+                    return {"error": "检测模型未加载", "detections": []}
                 
-                return {"error": "检测模型未加载", "detections": []}
-            
             except Exception as e:
                 traceback.print_exc()
                 return {"error": f"检测失败: {str(e)}", "detections": []}
         
         def _process_detections(self, output, plant_type=None):
             """处理检测输出结果为友好格式"""
+            import torch
             
             try:
                 # 确保有输出且格式正确
                 if not output or not isinstance(output, dict):
-                    return {"error": "检测输出格式无效", "detections": []}
+                    return {"error": "无效的检测结果", "detections": []}
                 
                 # 获取边界框、置信度和标签
                 boxes = output.get('boxes', torch.tensor([]))
@@ -174,38 +180,68 @@ def create_predictor():
                 # 构建检测结果
                 detections = []
                 for i, (box, score, label) in enumerate(zip(boxes.tolist(), scores.tolist(), labels.tolist())):
-                    # 修改这部分，确保正确处理disease_class_names
+                    # 获取类别名称
                     label_str = str(label)
                     class_name = disease_class_names.get(label_str, f"未知类别-{label}")
                     
                     # 创建检测结果字典
                     detection = {
                         'id': i,
-                        'box': box,  # [x1, y1, x2, y2]格式
+                        'bbox': {
+                            'x': box[0],
+                            'y': box[1],
+                            'width': box[2] - box[0],
+                            'height': box[3] - box[1]
+                        },
                         'score': score,
                         'label': label,
                         'class_name': class_name,
-                        'width': width,
-                        'height': height,
-                        'area': (box[2] - box[0]) * (box[3] - box[1]),  # 计算区域面积
                         'severity': self._assess_severity(score, (box[2] - box[0]) * (box[3] - box[1]), width * height)
                     }
                     detections.append(detection)
                 
-                # 如果有植物类型和检测结果，添加治疗建议
-                treatment_recommendations = []
-                if plant_type and detections:
-                    # 这部分代码可以保持不变
-                    # 或者如果需要，可以添加根据检测结果生成治疗建议的代码
-                    pass
-                
-                # 返回最终结果
-                return {
-                    "detections": detections,
-                    "count": len(detections),
-                    "image_dimensions": {"width": width, "height": height},
-                    "treatment_recommendations": treatment_recommendations
+                # 评估整体严重程度
+                severity_assessment = {
+                    'level': 'unknown',
+                    'description': '无法评估'
                 }
+                
+                if detections:
+                    # 基于检测结果评估严重程度
+                    avg_score = sum(det['score'] for det in detections) / len(detections)
+                    max_score = max(det['score'] for det in detections)
+                    
+                    if len(detections) > 3 and avg_score > 0.7:
+                        severity_assessment = {
+                            'level': 'severe',
+                            'description': '检测到多处高置信度病害，建议立即采取治疗措施'
+                        }
+                    elif max_score > 0.8 or (len(detections) > 1 and avg_score > 0.6):
+                        severity_assessment = {
+                            'level': 'moderate',
+                            'description': '检测到显著病害迹象，建议尽快采取防治措施'
+                        }
+                    elif max_score > 0.5:
+                        severity_assessment = {
+                            'level': 'mild',
+                            'description': '检测到轻微病害迹象，建议密切观察并考虑预防性措施'
+                        }
+                elif plant_type:
+                    # 没有检测到病害，植物可能健康
+                    severity_assessment = {
+                        'level': 'healthy',
+                        'description': '未检测到病害，植物可能健康'
+                    }
+                
+                # 构建最终结果
+                result = {
+                    'detections': detections,
+                    'count': len(detections),
+                    'image_dimensions': {'width': width, 'height': height},
+                    'severity_assessment': severity_assessment
+                }
+                
+                return result
             
             except Exception as e:
                 import traceback
@@ -347,7 +383,8 @@ def detect_diseases():
             disease_name = detection["class_name"]
             
             # 检查是否为兼容的病害
-            if treatment_db.is_disease_compatible_with_plant(plant_type, disease_name):
+            # 如果植物类型为"类别X"格式，说明映射有问题，此时不过滤任何结果
+            if "类别" in plant_type or treatment_db.is_disease_compatible_with_plant(plant_type, disease_name):
                 filtered_detections.append(detection)
             else:
                 logger.warning(f"过滤不兼容的病害检测结果: {disease_name}，与{plant_type}不兼容")
