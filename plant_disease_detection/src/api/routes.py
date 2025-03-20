@@ -126,11 +126,9 @@ def create_predictor():
                     transform = get_transform(train=False)
                     
                     # 应用转换并添加批次维度
-                    image_tensor = transform(image).unsqueeze(0).to(self.device)
-                    
-                    # 将tensor移到与模型相同的设备上
+                    # 从detector获取设备，而不是使用self.device
                     device = next(self.detector.parameters()).device
-                    image_tensor = image_tensor.to(device)
+                    image_tensor = transform(image).unsqueeze(0).to(device)
                     
                     # 确保模型处于评估模式
                     self.detector.eval()
@@ -410,7 +408,7 @@ def detect_diseases():
         logger.error(f"检测过程中出错: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        return jsonify({"error": f"检测失败: {str(e)}", "detections": []}), 500
+        return jsonify({"error": f"检测过程中出错: {str(e)}"}), 500
 
 # 修改get_plant_diseases函数
 
