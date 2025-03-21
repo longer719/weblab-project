@@ -380,32 +380,15 @@ def detect_diseases():
         # 添加植物类型信息到结果中
         results['plant_type'] = plant_type
         
-        # 这里不再修改检测结果中的类名，保留检测器返回的原始结果
-        # 但仍然需要过滤掉不兼容的病害
-        filtered_detections = []
+        # 移除过滤逻辑，直接返回所有检测结果
+        # 可以添加置信度排序，优先展示高置信度结果
+        if results["detections"]:
+            results["detections"].sort(key=lambda x: x["score"], reverse=True)
+        
+        # 可以保留日志但不过滤
         for detection in results["detections"]:
             disease_name = detection["class_name"]
-            
-            # 检查是否为兼容的病害
-            if "类别" in plant_type or treatment_db.is_disease_compatible_with_plant(plant_type, disease_name):
-                filtered_detections.append(detection)
-            else:
-                logger.warning(f"过滤不兼容的病害检测结果: {disease_name}，与{plant_type}不兼容")
-
-        # 如果过滤后没有结果，添加"健康"状态
-        if not filtered_detections and results["detections"]:
-            detection = results["detections"][0].copy()
-            detection["class_name"] = "健康" 
-            detection["severity"] = "healthy"
-            detection["score"] = 0.95
-            filtered_detections.append(detection)
-            logger.info(f"将不兼容的病害检测替换为'健康'状态")
-
-        # 更新结果
-        results["detections"] = filtered_detections
-        
-        # 记录返回的结果结构
-        logger.info(f"检测结果: {len(filtered_detections)}个检测项")
+            logger.info(f"检测到: {disease_name}, 置信度: {detection['score']}")
         
         return jsonify(results)
     
