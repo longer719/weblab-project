@@ -613,43 +613,50 @@ class DiseaseTreatmentDatabase:
         
         return result
 
-    def is_disease_compatible_with_plant(self, plant_type: str, disease_name: str) -> bool:
-        """
-        检查病害是否与植物兼容
+    def is_disease_compatible_with_plant(self, plant_type: str, disease_class_name: str) -> bool:
+        """检查病害是否与植物兼容"""
+        # 处理植物-病害组合格式（如"苹果-黑星病"）
+        if "-" in disease_class_name:
+            parts = disease_class_name.split("-", 1)
+            if len(parts) >= 2:
+                plant_part = parts[0].lower().strip()
+                disease_part = parts[1].strip()
+                
+                # 如果植物部分与给定的植物类型匹配，认为它们是兼容的
+                if plant_part in plant_type.lower() or plant_type.lower() in plant_part:
+                    return True
+                
+                # 若检测到的是其他植物的病害，不兼容
+                return False
         
-        Args:
-            plant_type: 植物类型
-            disease_name: 病害名称
+        # "健康"状态与所有植物兼容
+        if "健康" in disease_class_name:
+            return True
             
-        Returns:
-            布尔值，表示是否兼容
-        """
-        # 标准化名称
-        plant = self._normalize_name(plant_type)
-        disease = self._normalize_name(disease_name)
-        
-        # 尝试加载兼容性数据
+        # 尝试使用disease_compatibility.json加载兼容性数据
         try:
+            # 标准化名称
+            plant = self._normalize_name(plant_type)
+            disease = disease_class_name
+            
             import json
             import os
+            compatibility_path = os.path.join('models', 'disease_compatibility.json')
             
-            # 加载兼容性数据
-            compatibility_file = os.path.join('models', 'disease_compatibility.json')
-            if os.path.exists(compatibility_file):
-                with open(compatibility_file, 'r', encoding='utf-8') as f:
+            if os.path.exists(compatibility_path):
+                with open(compatibility_path, 'r', encoding='utf-8') as f:
                     compatibility_data = json.load(f)
                     
-                # 检查植物是否在兼容性数据中
-                if plant in compatibility_data:
-                    # 返回病害是否在该植物的兼容病害列表中
-                    return disease in [self._normalize_name(d) for d in compatibility_data[plant]]
-                else:
-                    # 植物不在兼容性数据中，默认兼容
-                    return True
-            else:
-                # 文件不存在，默认兼容
-                return True
+                # 查找匹配的植物
+                for plant_key in compatibility_data:
+                    if plant.lower() in plant_key.lower() or plant_key.lower() in plant.lower():
+                        # 检查病害是否在该植物的兼容列表中
+                        compatible_diseases = compatibility_data[plant_key]
+                        return any(disease.lower() in d.lower() or d.lower() in disease.lower() 
+                                  for d in compatible_diseases)
         except Exception as e:
-            logger.error(f"检查病害兼容性时出错: {e}")
-            # 出错时，默认兼容
-            return True
+            import logging
+            logging.getLogger(__name__).error(f"检查病害兼容性时出错: {e}")
+        
+        # 默认宽松处理：若无法确定是否兼容，暂时认为兼容
+        return True

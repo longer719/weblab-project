@@ -174,15 +174,15 @@ def create_predictor():
                 image_size = output.get('image_size', (0, 0))
                 width, height = image_size
                 
-                # 获取类别名称映射
-                disease_class_names = getattr(current_app, 'disease_class_names', {})
+                # 获取类别名称映射 - 使用plant_class_names而不是disease_class_names
+                plant_class_names = getattr(current_app, 'plant_class_names', {})
                 
                 # 构建检测结果
                 detections = []
                 for i, (box, score, label) in enumerate(zip(boxes.tolist(), scores.tolist(), labels.tolist())):
-                    # 获取类别名称
+                    # 获取类别名称 - 这里使用plant_classes.json的映射
                     label_str = str(label)
-                    class_name = disease_class_names.get(label_str, f"未知类别-{label}")
+                    class_name = plant_class_names.get(label_str, f"未知类别-{label}")
                     
                     # 创建检测结果字典
                     detection = {
@@ -371,19 +371,19 @@ def detect_diseases():
         model_plant_type = mapping_service.extract_plant_type_from_class(plant_type)
         logger.info(f"使用植物类型进行检测: {plant_type} (映射为: {model_plant_type})")
         
-        # 执行检测后，添加过滤逻辑
+        # 执行检测
         results = predictor.detect(image_bytes, plant_type=model_plant_type)
 
         # 添加植物类型信息到结果中
         results['plant_type'] = plant_type
-
-        # 过滤不兼容的病害
+        
+        # 这里不再修改检测结果中的类名，保留检测器返回的原始结果
+        # 但仍然需要过滤掉不兼容的病害
         filtered_detections = []
         for detection in results["detections"]:
             disease_name = detection["class_name"]
             
             # 检查是否为兼容的病害
-            # 如果植物类型为"类别X"格式，说明映射有问题，此时不过滤任何结果
             if "类别" in plant_type or treatment_db.is_disease_compatible_with_plant(plant_type, disease_name):
                 filtered_detections.append(detection)
             else:
@@ -391,7 +391,6 @@ def detect_diseases():
 
         # 如果过滤后没有结果，添加"健康"状态
         if not filtered_detections and results["detections"]:
-            # 使用原始检测的边界框，但将类别改为"健康"
             detection = results["detections"][0].copy()
             detection["class_name"] = "健康" 
             detection["severity"] = "healthy"
@@ -401,17 +400,11 @@ def detect_diseases():
 
         # 更新结果
         results["detections"] = filtered_detections
-
-        # 修改输出处理，使用植物-病害组合的映射
-        for detection in results["detections"]:
-            # 使用plant_classes.json中的映射
-            class_id = detection.get("label", 0)
-            detection["class_name"] = mapping_service.get_plant_name(class_id)  # 获取完整的"植物-病害"名称
         
         return jsonify(results)
     
     except Exception as e:
-        logger.error(f"检测过程中出错: {str(e)}")
+        logger.error(f"检测过程中出错: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({"error": f"检测过程中出错: {str(e)}"}), 500

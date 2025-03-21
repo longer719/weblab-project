@@ -598,14 +598,141 @@ function showPlantInfo(plantType) {
  * 显示检测结果
  */
 function displayDetectionResults(results, container) {
-    const detections = results.detections;
-    // 使用完整的植物-病害名称进行展示
-    detections.map(det => `
-        <li>
-            <span class="disease-name">${det.class_name}</span>
-            <span class="disease-confidence">${(det.score * 100).toFixed(2)}%</span>
-        </li>
-    `).join('')
+    // 检查是否有任何检测结果
+    if (!results.detections || results.detections.length === 0) {
+        const emptyResult = document.createElement('div');
+        emptyResult.className = 'empty-state';
+        emptyResult.innerHTML = `
+            <i class="fas fa-leaf"></i>
+            <h4>未检测到病害</h4>
+            <p>这棵植物看起来很健康，没有检测到任何病害症状。</p>
+        `;
+        container.appendChild(emptyResult);
+        return;
+    }
+    
+    // 创建检测结果卡片
+    const resultCard = document.createElement('div');
+    resultCard.className = 'result-card detection-result';
+    
+    // 获取严重程度评估
+    const severityLevel = results.severity_assessment ? results.severity_assessment.level : 'unknown';
+    const severityDescription = results.severity_assessment ? results.severity_assessment.description : '无法评估';
+    
+    // 计算严重程度对应的类名
+    let severityClass = 'unknown';
+    switch (severityLevel) {
+        case 'healthy': severityClass = 'healthy'; break;
+        case 'mild': severityClass = 'mild'; break;
+        case 'moderate': severityClass = 'moderate'; break;
+        case 'severe': severityClass = 'severe'; break;
+    }
+    
+    // 构建疾病列表HTML
+    let diseaseListHTML = '';
+    const treatments = [];
+    
+    results.detections.forEach(detection => {
+        // 从完整的"植物-病害"格式中提取病害名称部分
+        let diseaseName = detection.class_name;
+        let displayName = diseaseName;
+        
+        if (diseaseName.includes('-')) {
+            const parts = diseaseName.split('-');
+            // 只显示病害部分
+            displayName = parts[1];
+        }
+        
+        // 添加到疾病列表
+        diseaseListHTML += `
+            <li>
+                <span class="disease-name">${displayName}</span>
+                <span class="severity-badge ${detection.severity || 'unknown'}">${detection.severity || '未知'}</span>
+                <span class="disease-confidence">${(detection.score * 100).toFixed(1)}%</span>
+            </li>
+        `;
+        
+        // 收集治疗信息
+        if (detection.treatment_info) {
+            treatments.push(detection.treatment_info);
+        }
+    });
+    
+    // 创建检测结果HTML
+    resultCard.innerHTML = `
+        <div class="result-header">
+            <h4>病害检测结果</h4>
+            <div class="detection-summary">
+                <span>检测到 ${results.detections.length} 个病害区域</span>
+                <span class="severity-badge ${severityClass}">严重程度: ${severityLevel === 'unknown' ? '未知' : severityLevel}</span>
+            </div>
+        </div>
+        <div class="result-details">
+            <div class="disease-summary">
+                <h5>病害摘要：</h5>
+                <p>${severityDescription}</p>
+                <ul class="disease-list">
+                    ${diseaseListHTML}
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    // 添加到容器
+    container.appendChild(resultCard);
+    
+    // 如果有治疗建议，添加它们
+    if (results.treatment_recommendations && results.treatment_recommendations.length > 0) {
+        processTreatmentRecommendations(results.treatment_recommendations, container);
+        // 添加提示
+        showTreatmentTip(container);
+    }
+    
+    // 创建检测图像的可视化
+    const previewImage = document.querySelector('.preview-image');
+    if (previewImage && typeof PlantVis !== 'undefined') {
+        const visContainer = document.getElementById('visualization-container');
+        
+        if (visContainer) {
+            // 显示可视化容器
+            visContainer.style.display = 'block';
+            
+            // 格式化检测数据以适应PlantVis
+            const formattedDetections = results.detections.map(det => ({
+                box: [det.bbox.x, det.bbox.y, det.bbox.x + det.bbox.width, det.bbox.y + det.bbox.height],
+                score: det.score,
+                class_name: det.class_name,
+                severity: det.severity
+            }));
+            
+            // 渲染检测框
+            const canvas = PlantVis.renderDetectionBoxes(previewImage, formattedDetections, {
+                showLabels: true,
+                showScores: true,
+                scoreThreshold: 0.5
+            });
+            
+            // 显示可视化，并添加交互控件
+            PlantVis.displayVisualization(visContainer, canvas, {
+                allowThresholdChange: true,
+                initialThreshold: 0.5,
+                visModes: [
+                    { label: '边界框', value: 'boxes' },
+                    { label: '热图', value: 'heatmap' }
+                ],
+                currentMode: 'boxes',
+                allowDownload: true
+            });
+            
+            // 触发自定义事件，通知其他组件检测结果已更新
+            document.dispatchEvent(new CustomEvent('plant-detection-result', {
+                detail: {
+                    image: previewImage,
+                    detections: formattedDetections
+                }
+            }));
+        }
+    }
 }
 
 /**
