@@ -640,7 +640,7 @@ function displayDetectionResults(results, container) {
         if (diseaseName.includes('-')) {
             const parts = diseaseName.split('-');
             // 只显示病害部分
-            displayName = parts[1];
+            displayName = parts[1] || parts[0]; // 如果分割后没有第二部分，使用第一部分
         }
         
         // 添加到疾病列表
@@ -682,9 +682,8 @@ function displayDetectionResults(results, container) {
     container.appendChild(resultCard);
     
     // 如果有治疗建议，添加它们
-    if (results.treatment_recommendations && results.treatment_recommendations.length > 0) {
-        processTreatmentRecommendations(results.treatment_recommendations, container);
-        // 添加提示
+    if (treatments.length > 0) {
+        processTreatmentRecommendations(treatments, container);
         showTreatmentTip(container);
     }
     
@@ -1384,18 +1383,6 @@ function showPlantDiseaseLibrary(plantType) {
         });
 }
 
-// 当需要查询治疗信息时
-const fullName = detection.class_name;  // 如"苹果-黑星病"
-const [plantType, diseaseName] = fullName.split('-');  // 分离为"苹果"和"黑星病"
-
-// 然后查询治疗信息
-fetch(`/api/treatment?plant=${encodeURIComponent(plantType)}&disease=${encodeURIComponent(diseaseName)}`)
-    .then(res => res.json())
-    .then(treatmentData => {
-        // 显示详细治疗信息
-        showDetailedTreatment(treatmentData);
-    });
-
 // 页面加载完成后初始化应用
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
@@ -1405,22 +1392,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const disclaimerModal = document.getElementById('disclaimer-modal');
     
     // 当用户点击模态框的关闭按钮或模态框外部区域时关闭模态框
-    document.querySelectorAll('.modal .close').forEach(closeBtn => {
-        closeBtn.addEventListener('click', function() {
-            this.closest('.modal').style.display = 'none';
+    const closeButtons = document.querySelectorAll('.modal .close');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const modal = this.closest('.modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
         });
     });
     
-    // 点击模态框外部区域关闭
+    // 点击模态框外部关闭
     window.addEventListener('click', function(event) {
-        if (event.target.classList.contains('modal')) {
-            event.target.style.display = 'none';
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+        if (event.target === disclaimerModal) {
+            disclaimerModal.style.display = 'none';
         }
     });
     
-    // 打开免责声明弹窗
-    document.getElementById('show-disclaimer').addEventListener('click', function(e) {
-        e.preventDefault();
-        disclaimerModal.style.display = 'block';
-    });
+    // 显示声明链接
+    const disclaimerLink = document.getElementById('show-disclaimer');
+    if (disclaimerLink) {
+        disclaimerLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (disclaimerModal) {
+                disclaimerModal.style.display = 'block';
+            }
+        });
+    }
 });

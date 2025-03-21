@@ -363,6 +363,9 @@ def detect_diseases():
         plant_type = plant_type.split('-')[0]
         logger.info(f"从分类结果中提取纯植物类型: {plant_type}")
     
+    # 记录调试信息
+    logger.info(f"植物类型参数: {plant_type}")
+    
     try:
         # 创建预测器
         predictor = create_predictor()
@@ -400,6 +403,9 @@ def detect_diseases():
 
         # 更新结果
         results["detections"] = filtered_detections
+        
+        # 记录返回的结果结构
+        logger.info(f"检测结果: {len(filtered_detections)}个检测项")
         
         return jsonify(results)
     
@@ -468,7 +474,7 @@ def get_treatment():
         return jsonify(treatment_info)
     except Exception as e:
         logger.error(f"获取治疗建议时出错: {e}")
-        return jsonify({"error": f"获取治疗建议时出错: {str(e)}"}), 500
+        return jsonify({"error": f"获取治疗建议时出错: {e}"}), 500
 
 # 在文件末尾添加新的路由
 
