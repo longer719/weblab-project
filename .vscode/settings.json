@@ -1,0 +1,26 @@
+{
+    "window.titleBarStyle": "custom",
+    "window.restoreWindows": "none",
+    "window.newWindowDimensions": "maximized",
+    "window.autoDetectHighContrast": false,
+    
+    // 增加内存限制的关键设置
+    "files.watcherExclude": {
+      "**/.venv/**": true,
+      "**/models/**": true,
+      "**/data/**": true,
+      "**/experiments/**": true,
+      "**/__pycache__/**": true
+    },
+    "search.exclude": {
+      "**/models": true,
+      "**/data": true,
+      "**/.venv": true,
+      "**/evaluation_results": true
+    },
+    
+    // 如果使用远程扩展，可以增加额外的内存
+    "remote.extensionKind": {
+      "ms-vscode.js-debug-companion": ["workspace"]
+    }
+  }
