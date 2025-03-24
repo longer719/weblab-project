@@ -972,3 +972,55 @@ footer {
 .action-buttons-container .primary {
     order: 2;
 }
+
+/* 可视化错误样式 */
+.visualization-error {
+    text-align: center;
+    padding: 20px;
+    background-color: #fff3f3;
+    border-radius: 8px;
+    border-left: 4px solid #f44336;
+    margin: 15px 0;
+}
+
+.visualization-error i {
+    color: #f44336;
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.error-details {
+    font-family: monospace;
+    padding: 8px;
+    background-color: #f8f8f8;
+    border-radius: 4px;
+    margin-top: 10px;
+    word-break: break-all;
+}
+
+/* 解决touch-action兼容性问题 */
+.element-with-touch {
+    -ms-touch-action: none;
+    touch-action: none; /* 支持Firefox 52+, Safari 13+ */
+}
+
+/* 解决user-select兼容性问题 */
+.element-with-selection {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* 解决background-clip顺序问题 */
+.element-with-background-clip {
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* 解决text-size-adjust兼容性问题 */
+.element-with-text-adjust {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}

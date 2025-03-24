@@ -688,64 +688,77 @@
         // 创建检测图像的可视化
         const previewImage = document.querySelector('.preview-image');
         if (previewImage && typeof PlantVis !== 'undefined') {
-            const visContainer = document.getElementById('visualization-container');
-            
-            if (visContainer) {
-                // 显示可视化容器
-                visContainer.style.display = 'block';
-                
-                // 格式化检测数据以适应PlantVis
-                const formattedDetections = results.detections.map(det => ({
-                    box: [det.bbox.x, det.bbox.y, det.bbox.x + det.bbox.width, det.bbox.y + det.bbox.height],
-                    score: det.score,
-                    class_name: det.class_name,
-                    severity: det.severity
-                }));
-                
-                // 渲染检测框
-                const canvas = PlantVis.renderDetectionBoxes(previewImage, formattedDetections, {
-                    showLabels: true,
-                    showScores: true,
-                    scoreThreshold: 0.5
-                });
-                
-                // 显示可视化，并添加交互控件
-                PlantVis.displayVisualization(visContainer, canvas, {
-                    allowThresholdChange: true,  // 启用阈值调整
-                    enableThreshold: true,       // 显示阈值控制
-                    initialThreshold: 0.5,
-                    enableModeSwitch: true,      // 启用模式切换
-                    visModes: [
-                        { label: '边界框', value: 'boxes' },
-                        { label: '热图', value: 'heatmap' }
-                    ],
-                    currentMode: 'boxes',
-                    showControls: true,          // 显示控制面板
-                    allowDownload: true
-                });
-                
-                // 添加用户提示
-                const tipElement = document.createElement('div');
-                tipElement.className = 'visualization-tip';
-                tipElement.innerHTML = `
-                    <p><i class="fas fa-info-circle"></i> 提示: 您可以调整置信度阈值来过滤低置信度的检测结果，或切换不同的可视化模式。</p>
-                `;
-                tipElement.style.margin = "10px 0";
-                tipElement.style.padding = "8px";
-                tipElement.style.backgroundColor = "#e3f2fd";
-                tipElement.style.borderRadius = "4px";
-                tipElement.style.fontSize = "14px";
-                
-                visContainer.appendChild(tipElement);
-                
-                // 触发自定义事件，通知其他组件检测结果已更新
-                document.dispatchEvent(new CustomEvent('plant-detection-result', {
-                    detail: {
-                        image: previewImage,
-                        detections: formattedDetections
-                    }
-                }));
+            // 确保可视化容器存在
+            let visContainer = document.getElementById('visualization-container');
+            if (!visContainer) {
+                // 如果不存在，创建一个新容器
+                visContainer = document.createElement('div');
+                visContainer.id = 'visualization-container';
+                visContainer.className = 'visualization-container';
+                container.appendChild(visContainer);
             }
+            
+            // 确保容器可见
+            visContainer.style.display = 'block';
+            
+            // 格式化检测数据以适应PlantVis
+            const formattedDetections = results.detections.map(det => ({
+                box: [det.bbox.x, det.bbox.y, det.bbox.x + det.bbox.width, det.bbox.y + det.bbox.height],
+                score: det.score,
+                class_name: det.class_name,
+                severity: det.severity
+            }));
+            
+            // 在可视化代码部分添加调试日志
+            console.log('可视化容器:', visContainer, visContainer.style.display);
+            console.log('图像尺寸:', previewImage.width, previewImage.height);
+            console.log('格式化后的检测数据:', formattedDetections);
+            console.log('PlantVis状态:', PlantVis.getState ? PlantVis.getState() : 'getState不可用');
+            
+            // 确保图像已加载完成
+            if (previewImage.complete) {
+                renderVisualizations();
+            } else {
+                previewImage.onload = renderVisualizations;
+            }
+            
+            function renderVisualizations() {
+                try {
+                    console.log('即将渲染可视化...');
+                    const canvas = PlantVis.renderDetectionBoxes(previewImage, formattedDetections, {
+                        showLabels: true,
+                        showScores: true,
+                        scoreThreshold: 0.5
+                    });
+                    console.log('可视化渲染完成:', canvas);
+                    
+                    // 显示可视化，并添加交互控件
+                    PlantVis.displayVisualization(visContainer, canvas, {
+                        allowThresholdChange: true,
+                        enableThreshold: true,
+                        initialThreshold: 0.5,
+                        enableModeSwitch: true,
+                        visModes: [
+                            { label: '边界框', value: 'boxes' },
+                            { label: '热图', value: 'heatmap' }
+                        ],
+                        currentMode: 'boxes',
+                        showControls: true,
+                        allowDownload: true
+                    });
+                } catch (err) {
+                    console.error('渲染可视化时出错:', err);
+                    // 显示错误信息到容器中
+                    visContainer.innerHTML = `
+                        <div class="visualization-error">
+                            <p><i class="fas fa-exclamation-triangle"></i> 无法渲染可视化结果</p>
+                            <p class="error-details">${err.message}</p>
+                        </div>
+                    `;
+                }
+            }
+        } else {
+            console.error('预览图像不存在或PlantVis未定义');
         }
     }
 
@@ -953,6 +966,8 @@
         const visContainer = document.getElementById('visualization-container');
         if (!visContainer || typeof PlantVis === 'undefined') return;
         
+        console.log('切换可视化模式:', mode);
+        
         // 根据模式选择不同的渲染方法
         if (mode === 'boxes') {
             updateVisualizationWithThreshold(0.5); // 使用默认阈值重新渲染边界框
@@ -963,12 +978,49 @@
             
             // 渲染热图
             const canvas = PlantVis.renderHeatmap(originalImage, heatmapData);
+            
+            // 显示热图可视化
             PlantVis.displayVisualization(visContainer, canvas, {
+                allowThresholdChange: true,  // 确保控制面板包含阈值调整
+                initialThreshold: 0.5,
+                enableThreshold: true,
+                enableModeSwitch: true,
                 visModes: [
                     { label: '边界框', value: 'boxes' },
-                    { label: '热图', value: 'heatmap' }
+                    { label: '热图', value: 'heatmap' },
+                    { label: '混合', value: 'blend' }
                 ],
-                currentMode: 'heatmap'
+                currentMode: 'heatmap',
+                showControls: true,
+                allowDownload: true
+            });
+        } else if (mode === 'blend') {
+            // 混合模式：结合边界框和热图
+            const detections = appState.results.detections;
+            const formattedDetections = detections.map(det => ({
+                box: [det.bbox.x, det.bbox.y, det.bbox.x + det.bbox.width, det.bbox.y + det.bbox.height],
+                score: det.score,
+                class_name: det.class_name,
+                severity: det.severity
+            }));
+            
+            const canvas = PlantVis.renderBlendMode(originalImage, formattedDetections, {
+                scoreThreshold: 0.3
+            });
+            
+            PlantVis.displayVisualization(visContainer, canvas, {
+                allowThresholdChange: true,
+                initialThreshold: 0.3,
+                enableThreshold: true,
+                enableModeSwitch: true,
+                visModes: [
+                    { label: '边界框', value: 'boxes' },
+                    { label: '热图', value: 'heatmap' },
+                    { label: '混合', value: 'blend' }
+                ],
+                currentMode: 'blend',
+                showControls: true,
+                allowDownload: true
             });
         }
     }
@@ -977,19 +1029,81 @@
      * 根据检测结果生成热图数据
      */
     function generateHeatmapData(detections, width, height) {
-        // 简化版热图数据生成
-        return detections.map(det => {
-            const centerX = det.bbox.x + det.bbox.width / 2;
-            const centerY = det.bbox.y + det.bbox.height / 2;
-            const radius = Math.max(det.bbox.width, det.bbox.height) / 2;
+        console.log('生成热图数据，图像尺寸:', width, 'x', height);
+        console.log('检测结果:', detections);
+        
+        const heatmapData = [];
+        
+        if (!detections || detections.length === 0) {
+            console.warn('没有检测结果，创建默认热图数据');
+            // 创建一个中心热点
+            heatmapData.push({
+                x: width / 2,
+                y: height / 2,
+                value: 0.5,
+                radius: Math.min(width, height) * 0.25
+            });
+            return heatmapData;
+        }
+        
+        detections.forEach(det => {
+            // 确保得分在有效范围内
+            const score = Math.min(Math.max(det.score || 0.5, 0), 1);
             
-            return {
+            // 提取边界框坐标
+            let x, y, w, h;
+            if (det.bbox) {
+                x = det.bbox.x || 0;
+                y = det.bbox.y || 0;
+                w = det.bbox.width || width * 0.2;
+                h = det.bbox.height || height * 0.2;
+            } else {
+                // 使用默认值
+                w = width * 0.2;
+                h = height * 0.2;
+                x = width / 2 - w / 2;
+                y = height / 2 - h / 2;
+            }
+            
+            // 计算中心点
+            const centerX = x + w / 2;
+            const centerY = y + h / 2;
+            
+            // 主热点 - 在检测框中心
+            heatmapData.push({
                 x: centerX,
                 y: centerY,
-                value: det.score, // 使用置信度作为热点强度
-                radius: radius * 1.5 // 稍微扩大半径使热图更明显
-            };
+                value: score, // 使用检测置信度作为热点强度
+                radius: Math.max(w, h) * 0.7 // 调整半径使热点更明显
+            });
+            
+            // 生成额外热点使热图更自然
+            const pointCount = Math.min(Math.floor(w * h / 1000), 5); // 最多5个额外点
+            
+            for (let i = 0; i < pointCount; i++) {
+                // 随机生成框内的点
+                const rx = x + Math.random() * w;
+                const ry = y + Math.random() * h;
+                
+                // 根据到中心的距离减弱热度
+                const distanceToCenter = Math.sqrt(
+                    Math.pow(rx - centerX, 2) + 
+                    Math.pow(ry - centerY, 2)
+                );
+                const maxDistance = Math.sqrt(Math.pow(w/2, 2) + Math.pow(h/2, 2));
+                const distanceRatio = 1 - Math.min(distanceToCenter / maxDistance, 1);
+                
+                heatmapData.push({
+                    x: rx,
+                    y: ry,
+                    value: score * distanceRatio * 0.6, // 随距离衰减
+                    radius: Math.max(w, h) * 0.3 * distanceRatio // 动态半径
+                });
+            }
         });
+        
+        console.log('生成的热图数据:', heatmapData);
+        return heatmapData;
     }
 
     // 修改 switchToDetection 函数，确保它正确处理纯植物名称
@@ -1571,44 +1685,47 @@
      * 根据阈值更新检测结果显示
      */
     function updateDetectionResultsWithThreshold(threshold) {
-        // 仅当有检测结果时执行
-        if (!appState.results || !appState.results.detections) return;
+        // 如果没有结果或者不是检测任务，直接返回
+        if (!appState.results || !appState.results.detections || appState.currentTask !== 'detection') return;
         
-        // 获取阈值过滤后的检测结果
-        const filteredDetections = appState.results.detections.filter(
-            det => det.score >= threshold
-        );
+        // 过滤检测结果
+        const filteredDetections = appState.results.detections.filter(det => det.score >= threshold);
         
-        // 更新结果计数
-        const countElement = document.querySelector('.detection-summary span');
-        if (countElement) {
-            countElement.textContent = `检测到 ${filteredDetections.length} 个病害区域`;
-        }
-        
-        // 更新病害列表
-        const diseaseList = document.querySelector('.disease-list');
-        if (diseaseList) {
-            // 保存原始HTML以保留事件监听器
-            const originalItems = Array.from(diseaseList.children);
-            diseaseList.innerHTML = '';
-            
-            // 根据阈值筛选需要显示的条目
-            originalItems.forEach(item => {
-                const confidenceEl = item.querySelector('.disease-confidence');
-                if (confidenceEl) {
-                    const confidence = parseFloat(confidenceEl.textContent) / 100;
-                    if (confidence >= threshold) {
-                        diseaseList.appendChild(item);
-                    }
+        // 更新显示的检测数量
+        const resultsContainer = document.getElementById('results-container');
+        if (resultsContainer) {
+            const detectionSummary = resultsContainer.querySelector('.detection-summary');
+            if (detectionSummary) {
+                const countSpan = detectionSummary.querySelector('span:first-child');
+                if (countSpan) {
+                    countSpan.textContent = `检测到 ${filteredDetections.length} 个病害区域`;
                 }
-            });
+            }
             
-            // 如果没有结果，显示提示
-            if (diseaseList.children.length === 0) {
-                const emptyItem = document.createElement('li');
-                emptyItem.className = 'empty-result';
-                emptyItem.textContent = '当前阈值下没有检测结果';
-                diseaseList.appendChild(emptyItem);
+            // 更新疾病列表
+            const diseaseList = resultsContainer.querySelector('.disease-list');
+            if (diseaseList) {
+                // 清空现有列表
+                diseaseList.innerHTML = '';
+                
+                // 重新生成列表
+                filteredDetections.forEach(detection => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span class="disease-name">${detection.class_name}</span>
+                        <span class="disease-confidence">${(detection.score * 100).toFixed(1)}%</span>
+                    `;
+                    diseaseList.appendChild(li);
+                });
+                
+                // 如果没有检测结果，显示提示
+                if (filteredDetections.length === 0) {
+                    const li = document.createElement('li');
+                    li.textContent = '当前阈值下未检测到病害区域';
+                    li.style.fontStyle = 'italic';
+                    li.style.color = '#888';
+                    diseaseList.appendChild(li);
+                }
             }
         }
     }
