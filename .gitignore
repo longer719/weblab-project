@@ -22,9 +22,3 @@ plant_disease_detection/evaluation_results_20250311/
 **/*.tar.gz
 **/*.rar
 **/*.tfevents.*
-# 添加到现有的.gitignore文件
-*.pth
-*.onnx
-*.pkl
-/models/*.pth
-/data/processed/
