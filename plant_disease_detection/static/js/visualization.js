@@ -89,497 +89,433 @@ const PlantVis = (function() {
         // 默认选项
         const opts = {
             scoreThreshold: options.scoreThreshold || config.defaultScoreThreshold,
-            showLabels: options.showLabels !== false,
-            showScores: options.showScores !== false,
-            highlightIndex: options.highlightIndex
+            showLabels: options.showLabels !== undefined ? options.showLabels : true,
+            showScores: options.showScores !== undefined ? options.showScores : true,
+            highlightIndex: options.highlightIndex || -1,
+            boxColors: options.boxColors || null
         };
         
         // 创建画布
         const canvas = document.createElement('canvas');
-        canvas.width = image.naturalWidth || image.width;
-        canvas.height = image.naturalHeight || image.height;
+        canvas.width = image.width;
+        canvas.height = image.height;
+        
         const ctx = canvas.getContext('2d');
         
-        // 绘制原图
+        // 绘制原始图像
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         
-        // 过滤检测结果，仅显示高于阈值的
-        const validDetections = detections.filter(det => det.score >= opts.scoreThreshold);
+        // 过滤分数低于阈值的检测结果
+        const filteredDetections = detections.filter(det => det.score >= opts.scoreThreshold);
         
         // 绘制每个检测框
-        validDetections.forEach((detection, index) => {
-            const { box, score, class_name } = detection;
+        filteredDetections.forEach((det, index) => {
+            const [x1, y1, x2, y2] = det.box;
+            const width = x2 - x1;
+            const height = y2 - y1;
             
-            // 设置样式
-            const isHighlighted = index === opts.highlightIndex;
-            ctx.strokeStyle = isHighlighted ? config.colors.boxHighlight : config.colors.boxDefault;
-            ctx.lineWidth = isHighlighted ? config.lineWidth + 1 : config.lineWidth;
-            
-            // 根据严重程度调整颜色
-            if (detection.severity) {
-                switch(detection.severity.toLowerCase()) {
-                    case 'severe': ctx.strokeStyle = config.colors.severe; break;
-                    case 'moderate': ctx.strokeStyle = config.colors.moderate; break;
-                    case 'mild': ctx.strokeStyle = config.colors.mild; break;
-                    case 'healthy': ctx.strokeStyle = config.colors.healthy; break;
+            // 确定框的颜色
+            let boxColor;
+            if (opts.boxColors && opts.boxColors[index]) {
+                // 使用提供的颜色
+                boxColor = opts.boxColors[index];
+            } else if (index === opts.highlightIndex) {
+                // 高亮选中的框
+                boxColor = config.colors.boxHighlight;
+            } else if (det.class_name && det.class_name.toLowerCase().includes('健康')) {
+                // 健康样本用绿色
+                boxColor = config.colors.healthy;
+            } else {
+                // 根据置信度确定颜色
+                if (det.severity === 'severe') {
+                    boxColor = config.colors.severe;
+                } else if (det.severity === 'moderate') {
+                    boxColor = config.colors.moderate;
+                } else if (det.severity === 'mild') {
+                    boxColor = config.colors.mild;
+                } else {
+                    // 默认蓝色
+                    boxColor = config.colors.boxDefault;
                 }
             }
             
-            // 绘制矩形
-            ctx.beginPath();
-            ctx.rect(box[0], box[1], box[2] - box[0], box[3] - box[1]);
-            ctx.stroke();
+            // 绘制边界框
+            ctx.strokeStyle = boxColor;
+            ctx.lineWidth = config.lineWidth;
+            ctx.strokeRect(x1, y1, width, height);
             
-            // 标签背景
+            // 添加半透明填充
+            ctx.fillStyle = boxColor + Math.floor(config.opacity * 255).toString(16).padStart(2, '0');
+            ctx.fillRect(x1, y1, width, height);
+            
+            // 如果需要显示标签
             if (opts.showLabels || opts.showScores) {
-                const label = opts.showLabels ? class_name : '';
-                const scoreText = opts.showScores ? `${(score * 100).toFixed(0)}%` : '';
-                const displayText = [label, scoreText].filter(Boolean).join(': ');
+                const label = det.class_name || '';
+                const score = det.score ? Math.round(det.score * 100) + '%' : '';
+                
+                let displayText = '';
+                if (opts.showLabels && opts.showScores) {
+                    displayText = `${label}: ${score}`;
+                } else if (opts.showLabels) {
+                    displayText = label;
+                } else if (opts.showScores) {
+                    displayText = score;
+                }
                 
                 if (displayText) {
-                    const textWidth = ctx.measureText(displayText).width + 10;
-                    const textHeight = config.fontSize + 10;
-                    
-                    ctx.fillStyle = isHighlighted ? 
-                        config.colors.boxHighlight : 
-                        config.colors.boxDefault;
-                    ctx.globalAlpha = 0.7;
-                    ctx.fillRect(box[0], box[1] - textHeight, textWidth, textHeight);
-                    ctx.globalAlpha = 1.0;
-                    
-                    // 标签文本
-                    ctx.fillStyle = 'white';
+                    // 绘制标签背景
                     ctx.font = `${config.fontSize}px ${config.fontFamily}`;
-                    ctx.fillText(displayText, box[0] + 5, box[1] - 5);
+                    const textWidth = ctx.measureText(displayText).width;
+                    const textHeight = config.fontSize;
+                    const textX = x1;
+                    const textY = y1 - textHeight - 5;
+                    
+                    ctx.fillStyle = boxColor;
+                    ctx.fillRect(textX, textY, textWidth + 6, textHeight + 4);
+                    
+                    // 绘制标签文本
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillText(displayText, textX + 3, textY + textHeight);
                 }
-            }
-            
-            // 添加检测框点击事件数据
-            if (detection.treatment_info) {
-                // 存储治疗信息到canvas元素的自定义数据中
-                if (!canvas.detectionData) {
-                    canvas.detectionData = [];
-                }
-                canvas.detectionData.push({
-                    box: [box[0], box[1], box[2], box[3]],
-                    treatment: detection.treatment_info
-                });
             }
         });
         
-        // 添加点击事件监听
-        if (!canvas.hasClickListener && canvas.detectionData && canvas.detectionData.length > 0) {
-            canvas.addEventListener('click', function(e) {
-                // 获取点击位置相对于canvas的坐标
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                // 缩放比例
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                
-                // 转换为canvas坐标
-                const canvasX = x * scaleX;
-                const canvasY = y * scaleY;
-                
-                // 检查是否点击了某个检测框
-                for (const data of canvas.detectionData) {
-                    const [x1, y1, x2, y2] = data.box;
-                    if (canvasX >= x1 && canvasX <= x2 && canvasY >= y1 && canvasY <= y2) {
-                        // 显示该框对应的治疗信息
-                        if (typeof showDetailedTreatment === 'function' && data.treatment) {
-                            showDetailedTreatment(data.treatment);
-                        }
-                        break;
-                    }
-                }
-            });
-            canvas.hasClickListener = true;
-        }
-        
         return canvas;
     }
-    
+
     /**
-     * 生成热图并叠加在原图上
-     * @param {HTMLImageElement|HTMLCanvasElement} image - 原始图像元素
+     * 渲染热图
+     * @param {HTMLImageElement|HTMLCanvasElement} image - 原始图像
      * @param {Array} heatmapData - 热图数据
      * @param {Object} options - 渲染选项
-     * @returns {HTMLCanvasElement} 渲染后的画布
+     * @returns {HTMLCanvasElement} 渲染后的热图画布
      */
     function renderHeatmap(image, heatmapData, options = {}) {
         // 默认选项
         const opts = {
-            opacity: options.opacity || config.opacity,
-            colorScale: options.colorScale || ['blue', 'lime', 'yellow', 'red'],
-            blur: options.blur || 15
+            opacity: options.opacity || 0.7,
+            radius: options.radius || 20,
+            blur: options.blur || 15,
+            gradient: options.gradient || {
+                0.4: 'blue',
+                0.6: 'cyan',
+                0.7: 'lime',
+                0.8: 'yellow',
+                1.0: 'red'
+            }
         };
         
         // 创建画布
         const canvas = document.createElement('canvas');
-        canvas.width = image.naturalWidth || image.width;
-        canvas.height = image.naturalHeight || image.height;
+        canvas.width = image.width;
+        canvas.height = image.height;
+        
         const ctx = canvas.getContext('2d');
         
-        // 绘制原图
+        // 绘制原始图像
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         
-        // 检查我们是否有热图数据
-        if (!heatmapData || !heatmapData.length) return canvas;
-        
-        // 创建热图数据
-        // 注意：在实际应用中，这里可能会使用类似heatmap.js的库
-        // 由于我们只提供架构，这里用简化的方法
-        const heatmapCanvas = document.createElement('canvas');
-        heatmapCanvas.width = canvas.width;
-        heatmapCanvas.height = canvas.height;
-        const heatCtx = heatmapCanvas.getContext('2d');
-        
-        // 绘制热点
-        heatmapData.forEach(point => {
-            const gradient = heatCtx.createRadialGradient(
-                point.x, point.y, 0, 
-                point.x, point.y, point.radius || 30
-            );
+        // 使用heatmap.js库生成热图
+        if (window.h337) {
+            // 创建临时容器
+            const tempContainer = document.createElement('div');
+            tempContainer.style.width = `${canvas.width}px`;
+            tempContainer.style.height = `${canvas.height}px`;
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            document.body.appendChild(tempContainer);
             
-            gradient.addColorStop(0, `rgba(255, 0, 0, ${point.value})`);
-            gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+            // 创建热图实例
+            const heatmapInstance = window.h337.create({
+                container: tempContainer,
+                radius: opts.radius,
+                maxOpacity: opts.opacity,
+                minOpacity: 0,
+                blur: opts.blur,
+                gradient: opts.gradient
+            });
             
-            heatCtx.fillStyle = gradient;
-            heatCtx.beginPath();
-            heatCtx.arc(point.x, point.y, point.radius || 30, 0, Math.PI * 2);
-            heatCtx.fill();
-        });
-        
-        // 应用模糊效果增强热图外观
-        if (heatCtx.filter) {
-            heatCtx.filter = `blur(${opts.blur}px)`;
-            heatCtx.drawImage(heatmapCanvas, 0, 0);
-            heatCtx.filter = 'none';
+            // 设置数据
+            heatmapInstance.setData({
+                max: 1,
+                data: heatmapData
+            });
+            
+            // 获取热图canvas
+            const heatCanvas = tempContainer.querySelector('canvas');
+            ctx.drawImage(heatCanvas, 0, 0);
+            
+            // 清理临时DOM
+            document.body.removeChild(tempContainer);
+        } else {
+            // 如果没有heatmap.js，使用简单的圆圈表示热点
+            heatmapData.forEach(point => {
+                const radius = Math.sqrt(point.value) * 50;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 0, 0, ${point.value * 0.7})`;
+                ctx.fill();
+            });
         }
-        
-        // 叠加热图到原图
-        ctx.globalAlpha = opts.opacity;
-        ctx.drawImage(heatmapCanvas, 0, 0);
-        ctx.globalAlpha = 1.0;
         
         return canvas;
     }
-    
+
     /**
-     * 生成并显示GradCAM可视化结果
-     * @param {HTMLImageElement} image - 原始图像元素
-     * @param {Array} gradcamData - GradCAM数据
-     * @param {Object} options - 渲染选项
-     */
-    function visualizeGradCAM(image, gradcamData, options = {}) {
-        // 转换GradCAM数据为热图数据格式
-        const heatmapData = convertGradCAMToHeatmap(gradcamData);
-        
-        // 渲染热图
-        return renderHeatmap(image, heatmapData, {
-            opacity: 0.7,
-            ...options
-        });
-    }
-    
-    /**
-     * 转换GradCAM数据为热图数据格式
-     * @param {Array|Object} gradcamData - GradCAM数据
-     * @returns {Array} 热图数据
-     */
-    function convertGradCAMToHeatmap(gradcamData) {
-        // 实际应用中，这里会有具体的转换逻辑
-        // 这里只是演示用的简化实现
-        if (Array.isArray(gradcamData)) {
-            return gradcamData.map(point => ({
-                x: point.x,
-                y: point.y,
-                value: point.activation,
-                radius: 20
-            }));
-        } else if (gradcamData && gradcamData.heatmap) {
-            // 如果直接提供了热图数据
-            return gradcamData.heatmap;
-        }
-        
-        return [];
-    }
-    
-    /**
-     * 在给定容器中显示可视化结果
-     * @param {HTMLElement} container - 目标容器元素
-     * @param {HTMLCanvasElement} canvas - 可视化画布
+     * 在指定容器中显示可视化内容
+     * @param {HTMLElement} container - 容器元素
+     * @param {HTMLCanvasElement} canvas - 绘制好的画布
      * @param {Object} options - 显示选项
      */
     function displayVisualization(container, canvas, options = {}) {
         if (!container || !canvas) return;
         
-        // 清除现有内容
+        // 清空容器
         container.innerHTML = '';
         
-        // 设置画布样式
-        canvas.style.maxWidth = '100%';
-        canvas.style.height = 'auto';
-        canvas.style.borderRadius = '4px';
-        canvas.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-        
-        // 添加到容器
+        // 添加画布
         container.appendChild(canvas);
         
-        // 如果需要添加交互控件
-        if (options.interactive !== false) {
-            addInteractiveControls(container, options);
+        // 如果启用下载选项，添加下载按钮
+        if (options.allowDownload) {
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.innerHTML = '<i class="fas fa-download"></i> 下载分析结果';
+            downloadBtn.addEventListener('click', () => {
+                const link = document.createElement('a');
+                link.download = '病害检测结果_' + new Date().toISOString().slice(0, 10) + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+            
+            container.appendChild(downloadBtn);
+        }
+        
+        // 如果需要添加控制面板
+        if (options.showControls || options.enableThreshold || options.enableModeSwitch) {
+            createControlPanel(container, {
+                enableThreshold: options.enableThreshold || options.allowThresholdChange,
+                threshold: options.initialThreshold || config.defaultScoreThreshold,
+                enableModeSwitch: options.enableModeSwitch,
+                currentMode: options.currentMode || 'boxes'
+            });
         }
     }
-    
+
     /**
-     * 添加交互控件
-     * @param {HTMLElement} container - 目标容器
-     * @param {Object} options - 控件选项
+     * 创建控制面板
+     * @param {HTMLElement} container - 容器元素
+     * @param {Object} options - 控制面板选项
      */
-    function addInteractiveControls(container, options = {}) {
+    function createControlPanel(container, options) {
         const controlPanel = document.createElement('div');
-        controlPanel.className = 'vis-control-panel';
-        controlPanel.style.marginTop = '10px';
-        controlPanel.style.padding = '10px';
-        controlPanel.style.backgroundColor = '#f5f5f5';
-        controlPanel.style.borderRadius = '4px';
+        controlPanel.className = 'vis-controls';
+        controlPanel.id = 'vis-controls';
         
         // 添加阈值滑块
-        if (options.allowThresholdChange !== false) {
-            const thresholdControl = createThresholdControl(options.initialThreshold || 0.5);
+        if (options.enableThreshold) {
+            const thresholdControl = document.createElement('div');
+            thresholdControl.className = 'threshold-control';
+            
+            const label = document.createElement('label');
+            label.textContent = '置信度阈值: ';
+            
+            const value = document.createElement('span');
+            value.className = 'threshold-value';
+            value.textContent = options.threshold || config.defaultScoreThreshold;
+            
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.className = 'threshold-slider';
+            slider.min = '0';
+            slider.max = '1';
+            slider.step = '0.01';
+            slider.value = options.threshold || config.defaultScoreThreshold;
+            
+            slider.addEventListener('input', function() {
+                value.textContent = this.value;
+                // 触发自定义事件
+                document.dispatchEvent(new CustomEvent('visualization-threshold-update', {
+                    detail: { threshold: parseFloat(this.value) }
+                }));
+            });
+            
+            thresholdControl.appendChild(label);
+            thresholdControl.appendChild(slider);
+            thresholdControl.appendChild(value);
             controlPanel.appendChild(thresholdControl);
         }
         
-        // 添加可视化模式切换
-        if (options.visModes && options.visModes.length) {
-            const modeControl = createModeControl(options.visModes, options.currentMode);
+        // 添加可视化模式选择
+        if (options.enableModeSwitch) {
+            const modeControl = document.createElement('div');
+            modeControl.className = 'mode-control';
+            
+            const modeLabel = document.createElement('div');
+            modeLabel.textContent = '可视化模式:';
+            modeControl.appendChild(modeLabel);
+            
+            const modeOptions = [
+                { id: 'boxes', text: '边界框', icon: 'fa-square-o' },
+                { id: 'heatmap', text: '热图', icon: 'fa-fire' },
+                { id: 'blend', text: '混合', icon: 'fa-object-group' }
+            ];
+            
+            const modeButtons = document.createElement('div');
+            modeButtons.className = 'mode-buttons';
+            
+            modeOptions.forEach(mode => {
+                const btn = document.createElement('button');
+                btn.className = `vis-mode-switch ${mode.id === (options.currentMode || 'boxes') ? 'active' : ''}`;
+                btn.dataset.mode = mode.id;
+                btn.innerHTML = `<i class="fas ${mode.icon}"></i> ${mode.text}`;
+                
+                btn.addEventListener('click', function() {
+                    // 更新按钮状态
+                    document.querySelectorAll('.vis-mode-switch').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    
+                    // 触发模式更改事件
+                    document.dispatchEvent(new CustomEvent('mode-change', {
+                        detail: { mode: mode.id }
+                    }));
+                });
+                
+                modeButtons.appendChild(btn);
+            });
+            
+            modeControl.appendChild(modeButtons);
             controlPanel.appendChild(modeControl);
         }
         
-        // 添加下载按钮
-        if (options.allowDownload !== false) {
-            const downloadBtn = createDownloadButton(container.querySelector('canvas'));
-            controlPanel.appendChild(downloadBtn);
-        }
-        
-        // 添加到容器
         container.appendChild(controlPanel);
     }
-    
-    /**
-     * 创建阈值控制滑块
-     * @param {number} initialValue - 初始阈值
-     * @returns {HTMLElement} 滑块元素
-     */
-    function createThresholdControl(initialValue = 0.5) {
-        const container = document.createElement('div');
-        container.className = 'threshold-control';
-        container.style.marginBottom = '10px';
-        
-        const label = document.createElement('label');
-        label.textContent = '检测阈值: ';
-        label.style.display = 'block';
-        label.style.marginBottom = '5px';
-        label.style.fontWeight = 'bold';
-        
-        const valueDisplay = document.createElement('span');
-        valueDisplay.textContent = `${(initialValue * 100).toFixed(0)}%`;
-        valueDisplay.style.marginLeft = '5px';
-        valueDisplay.className = 'threshold-value';
-        label.appendChild(valueDisplay);
-        
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = '0';
-        slider.max = '1';
-        slider.step = '0.01';
-        slider.value = initialValue;
-        slider.className = 'threshold-slider';
-        slider.style.width = '100%';
-        
-        // 更新显示值
-        slider.addEventListener('input', function() {
-            valueDisplay.textContent = `${(this.value * 100).toFixed(0)}%`;
-            // 触发自定义事件，让外部知道阈值变化
-            const event = new CustomEvent('threshold-change', { detail: { value: parseFloat(this.value) } });
-            document.dispatchEvent(event);
-        });
-        
-        container.appendChild(label);
-        container.appendChild(slider);
-        
-        return container;
-    }
-    
-    /**
-     * 创建模式切换控制
-     * @param {Array} modes - 可用模式
-     * @param {string} currentMode - 当前模式
-     * @returns {HTMLElement} 模式切换元素
-     */
-    function createModeControl(modes, currentMode) {
-        const container = document.createElement('div');
-        container.className = 'mode-control';
-        container.style.marginBottom = '10px';
-        
-        const label = document.createElement('div');
-        label.textContent = '可视化模式:';
-        label.style.marginBottom = '5px';
-        label.style.fontWeight = 'bold';
-        
-        const buttonsContainer = document.createElement('div');
-        buttonsContainer.className = 'mode-buttons';
-        buttonsContainer.style.display = 'flex';
-        buttonsContainer.style.gap = '5px';
-        
-        modes.forEach(mode => {
-            const button = document.createElement('button');
-            button.textContent = mode.label || mode;
-            button.dataset.mode = mode.value || mode;
-            button.className = 'vis-mode-switch';
-            button.style.padding = '5px 10px';
-            button.style.border = '1px solid #ccc';
-            button.style.borderRadius = '4px';
-            button.style.backgroundColor = (mode.value || mode) === currentMode ? '#2196F3' : '#ffffff';
-            button.style.color = (mode.value || mode) === currentMode ? '#ffffff' : '#000000';
-            button.style.cursor = 'pointer';
-            
-            button.addEventListener('click', function() {
-                // 更新按钮状态
-                buttonsContainer.querySelectorAll('button').forEach(btn => {
-                    btn.style.backgroundColor = '#ffffff';
-                    btn.style.color = '#000000';
-                });
-                this.style.backgroundColor = '#2196F3';
-                this.style.color = '#ffffff';
-                
-                // 触发自定义事件
-                const event = new CustomEvent('mode-change', { 
-                    detail: { mode: this.dataset.mode } 
-                });
-                document.dispatchEvent(event);
-            });
-            
-            buttonsContainer.appendChild(button);
-        });
-        
-        container.appendChild(label);
-        container.appendChild(buttonsContainer);
-        
-        return container;
-    }
-    
-    /**
-     * 创建下载按钮
-     * @param {HTMLCanvasElement} canvas - 要下载的画布
-     * @returns {HTMLElement} 下载按钮
-     */
-    function createDownloadButton(canvas) {
-        const button = document.createElement('button');
-        button.textContent = '下载可视化结果';
-        button.className = 'download-vis-btn';
-        button.style.marginTop = '10px';
-        button.style.padding = '8px 16px';
-        button.style.backgroundColor = '#4CAF50';
-        button.style.color = 'white';
-        button.style.border = 'none';
-        button.style.borderRadius = '4px';
-        button.style.cursor = 'pointer';
-        button.style.fontWeight = 'bold';
-        
-        button.addEventListener('click', function() {
-            if (!canvas) return;
-            
-            // 创建下载链接
-            const link = document.createElement('a');
-            link.download = `plant-disease-visualization-${new Date().getTime()}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        });
-        
-        return button;
-    }
-    
-    /**
-     * 创建和显示分析图表
-     * @param {HTMLElement} container - 目标容器
-     * @param {Object} data - 图表数据
-     * @param {string} chartType - 图表类型
-     * @returns {Object} 图表实例
-     */
-    function createChart(container, data, chartType = 'bar') {
-        // 在实际应用中，这里会使用Chart.js或其他图表库
-        // 这里我们只提供基本结构作为示例
-        const chartContainer = document.createElement('div');
-        chartContainer.className = 'chart-container';
-        chartContainer.style.width = '100%';
-        chartContainer.style.height = '300px';
-        chartContainer.style.marginTop = '20px';
-        chartContainer.style.position = 'relative';
-        
-        // 添加一个图表说明
-        const chartInfo = document.createElement('div');
-        chartInfo.className = 'chart-info';
-        chartInfo.textContent = `这里将显示${chartType}图表。在实际应用中会集成图表库。`;
-        chartInfo.style.textAlign = 'center';
-        chartInfo.style.padding = '20px';
-        chartInfo.style.backgroundColor = '#f9f9f9';
-        chartInfo.style.border = '1px dashed #ccc';
-        chartInfo.style.borderRadius = '4px';
-        
-        chartContainer.appendChild(chartInfo);
-        container.appendChild(chartContainer);
-        
-        return {
-            update: function(newData) {
-                console.log('更新图表数据:', newData);
-                // 实际应用中这里会更新图表
-            },
-            destroy: function() {
-                if (chartContainer.parentNode) {
-                    chartContainer.parentNode.removeChild(chartContainer);
-                }
-            }
-        };
-    }
-    
+
     /**
      * 更新可视化阈值
-     * @param {number} threshold - 新阈值
+     * @param {number} threshold - 新的阈值值
      */
     function updateVisualizationThreshold(threshold) {
-        // 触发自定义事件
-        const event = new CustomEvent('visualization-threshold-update', {
+        if (typeof threshold !== 'number' || threshold < 0 || threshold > 1) {
+            console.error('无效的阈值:', threshold);
+            return;
+        }
+        
+        // 触发阈值更新事件
+        document.dispatchEvent(new CustomEvent('visualization-threshold-update', {
             detail: { threshold }
-        });
-        document.dispatchEvent(event);
+        }));
     }
-    
+
     /**
-     * 切换可视化模式
-     * @param {string} mode - 可视化模式
+     * 更改可视化模式
+     * @param {string} mode - 可视化模式 ('boxes', 'heatmap', 'blend')
      */
     function changeVisualizationMode(mode) {
-        // 触发自定义事件
-        const event = new CustomEvent('visualization-mode-change', {
+        // 触发模式更改事件
+        document.dispatchEvent(new CustomEvent('mode-change', {
             detail: { mode }
-        });
-        document.dispatchEvent(event);
+        }));
     }
-    
+
+    /**
+     * 清除所有可视化内容
+     */
+    function clearVisualizations() {
+        if (elements.visualContainer) {
+            elements.visualContainer.innerHTML = '';
+        }
+    }
+
+    /**
+     * 将检测结果转换为热图数据
+     * @param {Array} detections - 检测结果数组
+     * @param {number} imageWidth - 图像宽度
+     * @param {number} imageHeight - 图像高度
+     * @returns {Array} 热图数据点数组
+     */
+    function detectionsToHeatmap(detections, imageWidth, imageHeight) {
+        const heatmapData = [];
+        
+        detections.forEach(det => {
+            if (det.score < 0.3) return; // 忽略低置信度检测
+            
+            const [x1, y1, x2, y2] = det.box;
+            const centerX = (x1 + x2) / 2;
+            const centerY = (y1 + y2) / 2;
+            const width = x2 - x1;
+            const height = y2 - y1;
+            const area = width * height;
+            
+            // 主点 - 在中心位置添加强度最高的点
+            heatmapData.push({
+                x: centerX,
+                y: centerY,
+                value: det.score
+            });
+            
+            // 边界点 - 在框的四个角和四条边的中点添加较弱的点
+            const edgePoints = [
+                [x1, y1], // 左上
+                [x2, y1], // 右上
+                [x1, y2], // 左下
+                [x2, y2], // 右下
+                [(x1 + x2) / 2, y1], // 上中
+                [(x1 + x2) / 2, y2], // 下中
+                [x1, (y1 + y2) / 2], // 左中
+                [x2, (y1 + y2) / 2]  // 右中
+            ];
+            
+            edgePoints.forEach(([x, y]) => {
+                heatmapData.push({
+                    x: x,
+                    y: y,
+                    value: det.score * 0.7 // 边界点强度为中心点的70%
+                });
+            });
+            
+            // 对于较大的区域，在内部添加更多点
+            if (area > 10000) { // 根据实际情况调整阈值
+                const stepX = width / 4;
+                const stepY = height / 4;
+                
+                for (let i = 1; i < 4; i++) {
+                    for (let j = 1; j < 4; j++) {
+                        if (i === 2 && j === 2) continue; // 跳过中心点(已添加)
+                        
+                        const pointX = x1 + i * stepX;
+                        const pointY = y1 + j * stepY;
+                        
+                        // 随机化位置和强度，使热图更自然
+                        const jitter = 0.1; // 抖动范围
+                        const jitteredX = pointX + (Math.random() * 2 - 1) * jitter * stepX;
+                        const jitteredY = pointY + (Math.random() * 2 - 1) * jitter * stepY;
+                        
+                        heatmapData.push({
+                            x: jitteredX,
+                            y: jitteredY,
+                            value: det.score * (0.5 + Math.random() * 0.3) // 随机强度
+                        });
+                    }
+                }
+            }
+        });
+        
+        return heatmapData;
+    }
+
     // 公开API
     return {
-        initialize,
-        renderDetectionBoxes,
-        renderHeatmap,
-        visualizeGradCAM,
-        displayVisualization,
-        createChart,
-        updateVisualizationThreshold,
-        changeVisualizationMode
+        initialize: initialize,
+        renderDetectionBoxes: renderDetectionBoxes,
+        renderHeatmap: renderHeatmap,
+        displayVisualization: displayVisualization,
+        updateVisualizationThreshold: updateVisualizationThreshold,
+        changeVisualizationMode: changeVisualizationMode,
+        clearVisualizations: clearVisualizations,
+        detectionsToHeatmap: detectionsToHeatmap
     };
 })();
 
