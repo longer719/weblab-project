@@ -612,16 +612,7 @@ footer {
     border-left: 4px solid #4CAF50;
 }
 
-.secondary {
-    background-color: #e0e0e0;
-    color: #333;
-}
-
-.secondary:hover {
-    background-color: #d0d0d0;
-}
-
-/* 病害库列表样式 */
+/* 病害库样式 */
 .disease-library-container {
     background-color: #f8f9fa;
     border-radius: 8px;

@@ -681,8 +681,11 @@
         
         // 如果有治疗建议，添加它们
         if (treatments.length > 0) {
+            console.log("发现治疗建议:", treatments.length, "项");
             processTreatmentRecommendations(treatments, container);
             showTreatmentTip(container);
+        } else {
+            console.log("未找到任何治疗建议信息");
         }
         
         // 创建检测图像的可视化
@@ -740,7 +743,8 @@
                         enableModeSwitch: true,
                         visModes: [
                             { label: '边界框', value: 'boxes' },
-                            { label: '热图', value: 'heatmap' }
+                            { label: '热图', value: 'heatmap' },
+                            { label: '混合', value: 'blend' }
                         ],
                         currentMode: 'boxes',
                         showControls: true,
@@ -1029,80 +1033,43 @@
      * 根据检测结果生成热图数据
      */
     function generateHeatmapData(detections, width, height) {
-        console.log('生成热图数据，图像尺寸:', width, 'x', height);
-        console.log('检测结果:', detections);
+        console.log("生成热图数据，图像尺寸:", width, "x", height);
+        console.log("检测结果:", detections);
         
         const heatmapData = [];
         
-        if (!detections || detections.length === 0) {
-            console.warn('没有检测结果，创建默认热图数据');
-            // 创建一个中心热点
-            heatmapData.push({
-                x: width / 2,
-                y: height / 2,
-                value: 0.5,
-                radius: Math.min(width, height) * 0.25
-            });
-            return heatmapData;
-        }
-        
-        detections.forEach(det => {
-            // 确保得分在有效范围内
-            const score = Math.min(Math.max(det.score || 0.5, 0), 1);
+        detections.forEach(detection => {
+            const bbox = detection.bbox;
+            // 中心点
+            const centerX = bbox.x + bbox.width / 2;
+            const centerY = bbox.y + bbox.height / 2;
             
-            // 提取边界框坐标
-            let x, y, w, h;
-            if (det.bbox) {
-                x = det.bbox.x || 0;
-                y = det.bbox.y || 0;
-                w = det.bbox.width || width * 0.2;
-                h = det.bbox.height || height * 0.2;
-            } else {
-                // 使用默认值
-                w = width * 0.2;
-                h = height * 0.2;
-                x = width / 2 - w / 2;
-                y = height / 2 - h / 2;
-            }
-            
-            // 计算中心点
-            const centerX = x + w / 2;
-            const centerY = y + h / 2;
-            
-            // 主热点 - 在检测框中心
+            // 主热点 - 病害中心
             heatmapData.push({
                 x: centerX,
                 y: centerY,
-                value: score, // 使用检测置信度作为热点强度
-                radius: Math.max(w, h) * 0.7 // 调整半径使热点更明显
+                value: detection.score,
+                // 半径与检测框大小成正比
+                radius: Math.max(bbox.width, bbox.height) * 0.7
             });
             
-            // 生成额外热点使热图更自然
-            const pointCount = Math.min(Math.floor(w * h / 1000), 5); // 最多5个额外点
-            
-            for (let i = 0; i < pointCount; i++) {
-                // 随机生成框内的点
-                const rx = x + Math.random() * w;
-                const ry = y + Math.random() * h;
-                
-                // 根据到中心的距离减弱热度
-                const distanceToCenter = Math.sqrt(
-                    Math.pow(rx - centerX, 2) + 
-                    Math.pow(ry - centerY, 2)
-                );
-                const maxDistance = Math.sqrt(Math.pow(w/2, 2) + Math.pow(h/2, 2));
-                const distanceRatio = 1 - Math.min(distanceToCenter / maxDistance, 1);
+            // 生成额外热点，提高热图密度
+            const numExtraPoints = 5;
+            for (let i = 0; i < numExtraPoints; i++) {
+                // 在边界框内生成随机点
+                const offsetX = (Math.random() - 0.5) * bbox.width * 0.8;
+                const offsetY = (Math.random() - 0.5) * bbox.height * 0.8;
                 
                 heatmapData.push({
-                    x: rx,
-                    y: ry,
-                    value: score * distanceRatio * 0.6, // 随距离衰减
-                    radius: Math.max(w, h) * 0.3 * distanceRatio // 动态半径
+                    x: centerX + offsetX,
+                    y: centerY + offsetY,
+                    value: detection.score * (0.3 + Math.random() * 0.4),
+                    radius: Math.max(bbox.width, bbox.height) * 0.2 * (0.4 + Math.random() * 0.6)
                 });
             }
         });
         
-        console.log('生成的热图数据:', heatmapData);
+        console.log("生成的热图数据:", heatmapData);
         return heatmapData;
     }
 
@@ -1219,11 +1186,103 @@
         modal.style.display = 'block';
     }
 
+    // 添加显示详细治疗信息的模态框函数
+    function showDetailedTreatment(treatment) {
+        // 获取模态框元素
+        let modal = document.getElementById('treatment-modal');
+        
+        // 如果模态框不存在，创建一个
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'treatment-modal';
+            modal.className = 'modal';
+            
+            const modalContent = document.createElement('div');
+            modalContent.className = 'modal-content';
+            
+            const closeSpan = document.createElement('span');
+            closeSpan.className = 'close';
+            closeSpan.innerHTML = '&times;';
+            closeSpan.onclick = function() {
+                modal.style.display = 'none';
+            };
+            
+            modalContent.appendChild(closeSpan);
+            const modalBody = document.createElement('div');
+            modalBody.id = 'modal-body';
+            modalContent.appendChild(modalBody);
+            
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+            
+            // 点击模态框外部时关闭
+            window.onclick = function(event) {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            };
+        }
+        
+        // 准备模态框内容
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = `
+            <h3>${treatment.plant_name}的${treatment.disease_name}详细治疗方案</h3>
+            
+            <div class="treatment-section">
+                <h4>症状描述</h4>
+                <ul>
+                    ${treatment.symptoms ? treatment.symptoms.map(s => `<li>${s}</li>`).join('') : '<li>无症状描述</li>'}
+            </ul>
+        </div>
+        
+        <div class="treatment-section">
+            <h4>病因分析</h4>
+            <p>${treatment.causes ? treatment.causes.join('</p><p>') : '无病因分析'}</p>
+        </div>
+        
+        <div class="treatment-section">
+            <h4>治疗方法</h4>
+            <ul>
+                ${treatment.treatments ? treatment.treatments.map(t => `<li>${t}</li>`).join('') : '<li>无治疗方法</li>'}
+            </ul>
+        </div>
+        
+        <div class="treatment-section">
+            <h4>预防措施</h4>
+            <ul>
+                ${treatment.prevention ? treatment.prevention.map(p => `<li>${p}</li>`).join('') : '<li>无预防措施</li>'}
+            </ul>
+        </div>
+        
+        ${treatment.organic_solutions ? `
+        <div class="treatment-section organic">
+            <h4>有机解决方案</h4>
+            <ul>
+                ${treatment.organic_solutions.map(o => `<li>${o}</li>`).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${treatment.severity ? `
+        <div class="treatment-section">
+            <h4>严重程度</h4>
+            <p>${treatment.severity}</p>
+        </div>
+        ` : ''}
+    `;
+    
+    // 显示模态框
+    modal.style.display = 'block';
+}
+
     // 添加处理治疗建议的辅助函数
     function processTreatmentRecommendations(treatments, container) {
         if (!treatments || treatments.length === 0) {
+            console.log("没有治疗建议可处理");
             return;
         }
+        
+        console.log("处理治疗建议:", treatments);
         
         const recContainer = document.createElement('div');
         recContainer.className = 'treatment-recommendations';
@@ -1239,6 +1298,7 @@
         
         // 处理治疗建议内容
         const contentDiv = document.createElement('div');
+        contentDiv.className = 'treatment-content';
         
         // 根据建议类型处理不同的显示方式
         treatments.forEach((treatment, index) => {
@@ -1256,7 +1316,6 @@
                     const urgencyClass = 
                         treatment.urgency.includes('高') ? 'high-urgency' : 
                         treatment.urgency.includes('中') ? 'medium-urgency' : 'low-urgency';
-                    
                     urgency = `<span class="${urgencyClass}">${treatment.urgency}</span>`;
                 }
                 
@@ -1365,7 +1424,7 @@
         
         tipElement.innerHTML = `
             <p><i class="fas fa-lightbulb" style="color: #ffc107; margin-right: 5px;"></i> 
-               <strong>提示:</strong> 点击上方的"治疗方案"卡片可查看详细治疗信息，或点击可视化区域中的检测框查看对应病害的治疗方案。</p>
+            <strong>提示:</strong> 点击上方的"治疗方案"卡片可查看详细治疗信息，或点击可视化区域中的检测框查看对应病害的治疗方案。</p>
             <button id="dismiss-tip" style="background: none; border: none; color: #2196F3; cursor: pointer; padding: 5px; float: right;">
                 关闭提示
             </button>
@@ -1597,8 +1656,8 @@
             })
             .catch(error => {
                 hideLoadingIndicator();
-                console.error('获取植物病害信息失败:', error);
-                updateStatusMessage('获取植物病害信息失败，请重试', 'error');
+                console.error('获取植物病害库失败:', error);
+                updateStatusMessage('获取植物病害库失败，请重试', 'error');
             });
     }
 

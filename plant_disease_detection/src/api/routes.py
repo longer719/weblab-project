@@ -158,12 +158,11 @@ def create_predictor():
         
         def _process_detections(self, output, plant_type=None):
             """处理检测输出结果为友好格式"""
-            import torch
             
             try:
                 # 确保有输出且格式正确
                 if not output or not isinstance(output, dict):
-                    return {"error": "无效的检测结果", "detections": []}
+                    return {"error": "无效的检测结果格式", "detections": []}
                 
                 # 获取边界框、置信度和标签
                 boxes = output.get('boxes', torch.tensor([]))
@@ -174,30 +173,51 @@ def create_predictor():
                 image_size = output.get('image_size', (0, 0))
                 width, height = image_size
                 
-                # 获取类别名称映射 - 使用plant_class_names而不是disease_class_names
+                # 获取类别名称映射
                 plant_class_names = getattr(current_app, 'plant_class_names', {})
                 
                 # 构建检测结果
                 detections = []
                 for i, (box, score, label) in enumerate(zip(boxes.tolist(), scores.tolist(), labels.tolist())):
-                    # 获取类别名称 - 这里使用plant_classes.json的映射
-                    label_str = str(label)
-                    class_name = plant_class_names.get(label_str, f"未知类别-{label}")
+                    # 获取类别名称
+                    class_name = plant_class_names.get(str(label), f"class_{label}")
+                    
+                    # 将归一化坐标转换为实际像素坐标
+                    x, y, x2, y2 = box
                     
                     # 创建检测结果字典
                     detection = {
                         'id': i,
-                        'bbox': {
-                            'x': box[0],
-                            'y': box[1],
-                            'width': box[2] - box[0],
-                            'height': box[3] - box[1]
-                        },
-                        'score': score,
                         'label': label,
                         'class_name': class_name,
-                        'severity': self._assess_severity(score, (box[2] - box[0]) * (box[3] - box[1]), width * height)
+                        'score': score,
+                        'bbox': {
+                            'x': x,
+                            'y': y,
+                            'width': x2 - x,
+                            'height': y2 - y
+                        }
                     }
+                    
+                    # 确定疾病严重程度
+                    detection['severity'] = self._assess_severity(score, (x2-x)*(y2-y), width*height)
+                    
+                    # 添加治疗信息 - 这是新增代码
+                    try:
+                        if '-' in class_name:
+                            plant_disease = class_name.split('-')
+                            plant_name = plant_disease[0].strip()
+                            disease_name = plant_disease[1].strip()
+                            
+                            # 如果不是"健康"状态，获取治疗信息
+                            if disease_name.lower() != "healthy":
+                                # 获取治疗信息
+                                treatment_info = treatment_db.get_treatment(plant_name, disease_name)
+                                detection['treatment_info'] = treatment_info
+                                logger.info(f"添加治疗信息: {plant_name}-{disease_name}")
+                    except Exception as e:
+                        logger.error(f"获取治疗信息失败: {e}")
+                    
                     detections.append(detection)
                 
                 # 评估整体严重程度
@@ -424,16 +444,14 @@ def get_plant_diseases():
             diseases_info["diseases"] = []
             for disease, info in treatment_db.treatments[plant].items():
                 if disease != "overview" and isinstance(info, dict):
-                    disease_data = {
+                    # 创建病害摘要信息
+                    disease_summary = {
                         "name": disease,
-                        "symptoms": info.get("symptoms", []),
-                        "causes": info.get("causes", []),
-                        "treatments": info.get("treatments", []),
-                        "prevention": info.get("prevention", []),
+                        "symptoms_summary": info.get("symptoms", ["无症状描述"])[0] if isinstance(info.get("symptoms"), list) else "无症状描述",
                         "severity": info.get("severity", "未知"),
-                        "organic_solutions": info.get("organic_solutions", [])
+                        "has_treatment": bool(info.get("treatments", []))
                     }
-                    diseases_info["diseases"].append(disease_data)
+                    diseases_info["diseases"].append(disease_summary)
             
             return jsonify(diseases_info)
         else:
@@ -453,11 +471,31 @@ def get_treatment():
         return jsonify({"error": "请提供植物类型参数"}), 400
     
     try:
+        # 如果没有提供disease_type，则返回该植物的所有病害概述
+        if not disease_type:
+            plant_info = treatment_db.get_treatment(plant_type)
+            # 添加植物名称到返回结果
+            plant_info['plant_name'] = plant_type
+            return jsonify(plant_info)
+        
+        # 获取特定病害的治疗信息
         treatment_info = treatment_db.get_treatment(plant_type, disease_type)
+        
+        # 检查是否找到了治疗信息
+        if 'error' in treatment_info:
+            logger.warning(f"未找到病害信息: {plant_type}/{disease_type}")
+            return jsonify(treatment_info), 404
+        
+        # 确保返回的数据包含植物名称和疾病名称
+        if 'plant_name' not in treatment_info:
+            treatment_info['plant_name'] = plant_type
+        if 'disease_name' not in treatment_info:
+            treatment_info['disease_name'] = disease_type
+            
         return jsonify(treatment_info)
     except Exception as e:
         logger.error(f"获取治疗建议时出错: {e}")
-        return jsonify({"error": f"获取治疗建议时出错: {e}"}), 500
+        return jsonify({"error": f"获取治疗建议时出错: {str(e)}"}), 500
 
 # 在文件末尾添加新的路由
 

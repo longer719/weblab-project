@@ -397,34 +397,33 @@ const PlantVis = (function() {
      * @returns {HTMLCanvasElement} 渲染后的画布
      */
     function renderBlendMode(image, detections, options = {}) {
+        console.log("渲染混合可视化模式");
+        
+        // 保存状态
+        state.originalImage = image;
+        state.currentDetections = detections;
+        
         // 首先绘制边界框
         const boxCanvas = renderDetectionBoxes(image, detections, options);
         
+        // 过滤检测结果
+        const filteredDetections = detections.filter(det => det.score >= (options.scoreThreshold || state.threshold));
+        
         // 生成热图数据
-        const heatmapData = detectionsToHeatmap(
-            detections.filter(d => d.score >= (options.scoreThreshold || state.threshold)), 
-            image.width, 
-            image.height
-        );
+        const heatmapData = detectionsToHeatmap(filteredDetections, image.width, image.height);
         
         // 创建最终画布
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
         canvas.height = image.height;
-        
         const ctx = canvas.getContext('2d');
         
         // 绘制边界框结果
         ctx.drawImage(boxCanvas, 0, 0);
         
-        // 创建带有低透明度的热图
-        const blendOptions = {
-            ...options,
-            opacity: 0.4 // 降低透明度以便边界框仍然可见
-        };
-        
-        // 使用heatmap.js生成热图
+        // 使用heatmap.js库生成热图
         if (window.h337) {
+            // 创建临时容器
             const tempContainer = document.createElement('div');
             tempContainer.style.width = `${canvas.width}px`;
             tempContainer.style.height = `${canvas.height}px`;
@@ -432,13 +431,14 @@ const PlantVis = (function() {
             tempContainer.style.left = '-9999px';
             document.body.appendChild(tempContainer);
             
-            const heatmapInstance = window.h337.create({
+            // 配置热图
+            const heatmapInstance = h337.create({
                 container: tempContainer,
-                radius: blendOptions.radius || 15,
-                maxOpacity: blendOptions.opacity,
+                radius: options.radius || 30,
+                maxOpacity: 0.6,
                 minOpacity: 0,
-                blur: blendOptions.blur || 10,
-                gradient: blendOptions.gradient || {
+                blur: 0.75,
+                gradient: options.gradient || {
                     0.4: 'blue',
                     0.6: 'cyan',
                     0.7: 'lime',
@@ -447,17 +447,25 @@ const PlantVis = (function() {
                 }
             });
             
+            // 设置热图数据
             heatmapInstance.setData({
                 max: 1,
                 data: heatmapData
             });
             
-            // 使用globalCompositeOperation进行混合
-            ctx.globalCompositeOperation = 'overlay';
-            ctx.drawImage(tempContainer.querySelector('canvas'), 0, 0);
-            ctx.globalCompositeOperation = 'source-over';
+            // 获取热图画布
+            const heatCanvas = tempContainer.querySelector('canvas');
             
+            // 将热图叠加到原始画布上
+            ctx.globalAlpha = 0.5;  // 半透明叠加
+            ctx.drawImage(heatCanvas, 0, 0);
+            ctx.globalAlpha = 1.0;
+            
+            // 移除临时容器
             document.body.removeChild(tempContainer);
+        } else {
+            console.warn('heatmap.js不可用，使用备选方法渲染');
+            ctx.drawImage(boxCanvas, 0, 0);
         }
         
         // 保存渲染结果
