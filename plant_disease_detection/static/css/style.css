@@ -1015,3 +1015,96 @@ footer {
     -moz-text-size-adjust: 100%;
     text-size-adjust: 100%;
 }
+
+/* 在文件末尾添加以下样式 */
+
+/* 检测到的病害部分样式 */
+.detected-disease-section {
+    background-color: #f8f9fa;
+    border-left: 5px solid #4CAF50;
+    padding: 15px;
+    margin-bottom: 25px;
+    border-radius: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.detected-disease-title {
+    color: #2E7D32;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.detected-disease-title i {
+    color: #4CAF50;
+}
+
+.detected-disease-card {
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.detected-disease-card h4 {
+    color: #1565C0;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.other-diseases-title {
+    margin-top: 30px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e0e0e0;
+    color: #546E7A;
+}
+
+.library-navigation {
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+}
+
+.disease-library-link {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.view-treatment-btn {
+    margin-top: 15px;
+}
+
+.treatment-header-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.treatment-actions {
+    margin-top: 25px;
+    display: flex;
+    justify-content: center;
+}
+
+/* 让疾病列表项看起来可点击 */
+.disease-list li {
+    transition: all 0.2s;
+    border-left: 0 solid #3498db;
+    padding-left: 0;
+}
+
+.disease-list li:hover {
+    background-color: #f5f9ff;
+    border-left: 4px solid #3498db;
+    padding-left: 6px;
+    cursor: pointer;
+}

@@ -707,7 +707,7 @@ const PlantVis = (function() {
      */
     function detectionsToHeatmap(detections, imageWidth, imageHeight) {
         const heatmapData = [];
-        
+        console.log(detections);
         detections.forEach(det => {
             if (det.score < 0.3) return; // 忽略低置信度检测
             

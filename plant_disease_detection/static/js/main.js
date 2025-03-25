@@ -764,6 +764,63 @@
         } else {
             console.error('预览图像不存在或PlantVis未定义');
         }
+        
+        // 在结果卡片中添加查看病害库按钮
+        const diseaseSummarySection = document.createElement('div');
+        diseaseSummarySection.className = 'disease-library-link';
+        diseaseSummarySection.innerHTML = `
+            <button class="action-button secondary view-all-diseases">
+                <i class="fas fa-book-medical"></i> 查看${appState.detectedPlantType}病害治疗库
+            </button>
+        `;
+        
+        // 在合适的位置添加这个按钮（在结果卡片的底部）
+        resultCard.appendChild(diseaseSummarySection);
+        
+        // 添加按钮事件
+        const viewAllDiseases = resultCard.querySelector('.view-all-diseases');
+        if (viewAllDiseases) {
+            viewAllDiseases.addEventListener('click', () => {
+                // 找出主要检测到的病害名称
+                let mainDiseaseName = null;
+                if (results.detections && results.detections.length > 0) {
+                    // 按置信度排序，获取最高置信度的病害
+                    const sortedDetections = [...results.detections].sort((a, b) => b.score - a.score);
+                    if (sortedDetections[0]) {
+                        // 提取病害名称部分（如果是"植物-病害"格式）
+                        const fullName = sortedDetections[0].class_name;
+                        if (fullName.includes('-')) {
+                            mainDiseaseName = fullName.split('-')[1].trim();
+                        } else {
+                            mainDiseaseName = fullName;
+                        }
+                    }
+                }
+                
+                // 显示病害治疗库，传递检测到的主要病害名称
+                showPlantDiseaseLibrary(appState.detectedPlantType, mainDiseaseName);
+            });
+        }
+        
+        // 为疾病列表中的每个项目添加点击事件
+        setTimeout(() => {
+            const diseaseItems = container.querySelectorAll('.disease-list li');
+            diseaseItems.forEach(item => {
+                item.style.cursor = 'pointer';
+                item.addEventListener('click', function() {
+                    const diseaseName = this.querySelector('.disease-name').textContent;
+                    // 请求该疾病的治疗信息
+                    fetch(`/api/treatment?plant=${encodeURIComponent(appState.detectedPlantType)}&disease=${encodeURIComponent(diseaseName)}`)
+                        .then(res => res.json())
+                        .then(treatmentData => {
+                            showDetailedTreatment(treatmentData);
+                        })
+                        .catch(err => {
+                            console.error('获取治疗信息失败:', err);
+                        });
+                });
+            });
+        }, 100);
     }
 
     /**
@@ -1136,8 +1193,12 @@
         
         // 准备模态框内容
         const modalBody = document.getElementById('modal-body');
+        
+        // 添加返回按钮和标题
         modalBody.innerHTML = `
-            <h3>${treatment.plant_name}的${treatment.disease_name}详细治疗方案</h3>
+            <div class="treatment-header-nav">
+                <h3>${treatment.plant_name}的${treatment.disease_name}详细治疗方案</h3>
+            </div>
             
             <div class="treatment-section">
                 <h4>症状描述</h4>
@@ -1180,100 +1241,22 @@
                 <p>${treatment.severity}</p>
             </div>
             ` : ''}
+            
+            <div class="treatment-actions">
+                <button class="action-button secondary" id="close-treatment-modal">
+                    <i class="fas fa-times"></i> 关闭
+                </button>
+            </div>
         `;
         
         // 显示模态框
         modal.style.display = 'block';
+        
+        // 添加关闭按钮事件
+        document.getElementById('close-treatment-modal').addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
     }
-
-    // 添加显示详细治疗信息的模态框函数
-    function showDetailedTreatment(treatment) {
-        // 获取模态框元素
-        let modal = document.getElementById('treatment-modal');
-        
-        // 如果模态框不存在，创建一个
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'treatment-modal';
-            modal.className = 'modal';
-            
-            const modalContent = document.createElement('div');
-            modalContent.className = 'modal-content';
-            
-            const closeSpan = document.createElement('span');
-            closeSpan.className = 'close';
-            closeSpan.innerHTML = '&times;';
-            closeSpan.onclick = function() {
-                modal.style.display = 'none';
-            };
-            
-            modalContent.appendChild(closeSpan);
-            const modalBody = document.createElement('div');
-            modalBody.id = 'modal-body';
-            modalContent.appendChild(modalBody);
-            
-            modal.appendChild(modalContent);
-            document.body.appendChild(modal);
-            
-            // 点击模态框外部时关闭
-            window.onclick = function(event) {
-                if (event.target === modal) {
-                    modal.style.display = 'none';
-                }
-            };
-        }
-        
-        // 准备模态框内容
-        const modalBody = document.getElementById('modal-body');
-        modalBody.innerHTML = `
-            <h3>${treatment.plant_name}的${treatment.disease_name}详细治疗方案</h3>
-            
-            <div class="treatment-section">
-                <h4>症状描述</h4>
-                <ul>
-                    ${treatment.symptoms ? treatment.symptoms.map(s => `<li>${s}</li>`).join('') : '<li>无症状描述</li>'}
-            </ul>
-        </div>
-        
-        <div class="treatment-section">
-            <h4>病因分析</h4>
-            <p>${treatment.causes ? treatment.causes.join('</p><p>') : '无病因分析'}</p>
-        </div>
-        
-        <div class="treatment-section">
-            <h4>治疗方法</h4>
-            <ul>
-                ${treatment.treatments ? treatment.treatments.map(t => `<li>${t}</li>`).join('') : '<li>无治疗方法</li>'}
-            </ul>
-        </div>
-        
-        <div class="treatment-section">
-            <h4>预防措施</h4>
-            <ul>
-                ${treatment.prevention ? treatment.prevention.map(p => `<li>${p}</li>`).join('') : '<li>无预防措施</li>'}
-            </ul>
-        </div>
-        
-        ${treatment.organic_solutions ? `
-        <div class="treatment-section organic">
-            <h4>有机解决方案</h4>
-            <ul>
-                ${treatment.organic_solutions.map(o => `<li>${o}</li>`).join('')}
-            </ul>
-        </div>
-        ` : ''}
-        
-        ${treatment.severity ? `
-        <div class="treatment-section">
-            <h4>严重程度</h4>
-            <p>${treatment.severity}</p>
-        </div>
-        ` : ''}
-    `;
-    
-    // 显示模态框
-    modal.style.display = 'block';
-}
 
     // 添加处理治疗建议的辅助函数
     function processTreatmentRecommendations(treatments, container) {
@@ -1361,7 +1344,24 @@
             detailsButton.onclick = function() {
                 // 如果有植物类型信息，显示植物病害库
                 if (appState.detectedPlantType) {
-                    showPlantDiseaseLibrary(appState.detectedPlantType);
+                    // 找出主要检测到的病害名称
+                    let mainDiseaseName = null;
+                    if (appState.results && appState.results.detections && appState.results.detections.length > 0) {
+                        // 按置信度排序，获取最高置信度的病害
+                        const sortedDetections = [...appState.results.detections].sort((a, b) => b.score - a.score);
+                        if (sortedDetections[0]) {
+                            // 提取病害名称部分（如果是"植物-病害"格式）
+                            const fullName = sortedDetections[0].class_name;
+                            if (fullName.includes('-')) {
+                                mainDiseaseName = fullName.split('-')[1].trim();
+                            } else {
+                                mainDiseaseName = fullName;
+                            }
+                        }
+                    }
+                    
+                    // 将检测到的主要病害名称传递给植物病害库函数
+                    showPlantDiseaseLibrary(appState.detectedPlantType, mainDiseaseName);
                 } else {
                     // 否则显示第一个治疗方案详情
                     showDetailedTreatment(treatments[0]);
@@ -1534,7 +1534,7 @@
     });
 
     // 添加函数，用于显示植物病害治疗库
-    function showPlantDiseaseLibrary(plantType) {
+    function showPlantDiseaseLibrary(plantType, detectedDisease = null) {
         // 创建加载指示器
         showLoadingIndicator();
         
@@ -1563,6 +1563,35 @@
                     </div>
                 `;
                 
+                // 如果检测到了特定病害，在顶部显示该病害信息
+                if (detectedDisease && data.diseases && data.diseases.length > 0) {
+                    const detectedDiseaseInfo = data.diseases.find(d => d.name === detectedDisease);
+                    
+                    if (detectedDiseaseInfo) {
+                        const currentDiseaseSection = document.createElement('div');
+                        currentDiseaseSection.className = 'detected-disease-section';
+                        
+                        currentDiseaseSection.innerHTML = `
+                            <h4 class="detected-disease-title">
+                                <i class="fas fa-exclamation-circle"></i> 检测到的病害
+                            </h4>
+                            <div class="detected-disease-card">
+                                <h4>${detectedDiseaseInfo.name}</h4>
+                                <div class="symptoms-summary">${detectedDiseaseInfo.symptoms_summary}</div>
+                                <div class="severity ${getSeverityClass(detectedDiseaseInfo.severity)}">
+                                    严重程度: ${detectedDiseaseInfo.severity || '未知'}
+                                </div>
+                                <button class="action-button primary view-treatment-btn" 
+                                    onclick="showDetailedTreatment({plant_name:'${plantType}', disease_name:'${detectedDiseaseInfo.name}'})">
+                                    查看详细治疗方案
+                                </button>
+                            </div>
+                        `;
+                        
+                        libraryContainer.appendChild(currentDiseaseSection);
+                    }
+                }
+                
                 // 如果有概览信息，添加植物概览
                 if (data.overview) {
                     const overviewSection = document.createElement('div');
@@ -1587,24 +1616,31 @@
                     libraryContainer.appendChild(overviewSection);
                 }
                 
-                // 添加疾病列表
+                // 添加其他可能的病害列表
                 if (data.diseases && data.diseases.length > 0) {
+                    const otherDiseasesSection = document.createElement('div');
+                    otherDiseasesSection.className = 'other-diseases-section';
+                    
+                    otherDiseasesSection.innerHTML = `
+                        <h4 class="other-diseases-title">其他可能的病害</h4>
+                    `;
+                    
                     const diseasesDiv = document.createElement('div');
                     diseasesDiv.className = 'disease-items';
                     
-                    data.diseases.forEach(disease => {
+                    // 过滤掉已经在顶部显示的检测到的疾病
+                    const otherDiseases = detectedDisease ? 
+                        data.diseases.filter(d => d.name !== detectedDisease) : 
+                        data.diseases;
+                    
+                    otherDiseases.forEach(disease => {
                         // 为每个疾病创建一个项目
                         const diseaseItem = document.createElement('div');
                         diseaseItem.className = 'disease-item';
                         diseaseItem.dataset.disease = disease.name;
                         
                         // 添加疾病信息
-                        let severityClass = 'unknown';
-                        if (disease.severity) {
-                            if (disease.severity.toLowerCase().includes('严重')) severityClass = 'severe';
-                            else if (disease.severity.toLowerCase().includes('中等')) severityClass = 'moderate';
-                            else if (disease.severity.toLowerCase().includes('轻微')) severityClass = 'mild';
-                        }
+                        let severityClass = getSeverityClass(disease.severity);
                         
                         diseaseItem.innerHTML = `
                             <h4>${disease.name}</h4>
@@ -1631,7 +1667,8 @@
                         diseasesDiv.appendChild(diseaseItem);
                     });
                     
-                    libraryContainer.appendChild(diseasesDiv);
+                    otherDiseasesSection.appendChild(diseasesDiv);
+                    libraryContainer.appendChild(otherDiseasesSection);
                 } else {
                     // 如果没有疾病信息，显示空状态
                     const emptyState = document.createElement('div');
@@ -1644,13 +1681,39 @@
                     libraryContainer.appendChild(emptyState);
                 }
                 
-                // 添加关闭按钮事件
+                // 添加返回按钮
+                const backButtonSection = document.createElement('div');
+                backButtonSection.className = 'library-navigation';
+                backButtonSection.innerHTML = `
+                    <button class="action-button secondary back-to-results">
+                        <i class="fas fa-arrow-left"></i> 返回检测结果
+                    </button>
+                `;
+                libraryContainer.appendChild(backButtonSection);
+                
+                // 添加关闭按钮和返回按钮事件
                 resultsContainer.appendChild(libraryContainer);
                 
                 const closeBtn = libraryContainer.querySelector('.disease-library-close');
                 if (closeBtn) {
                     closeBtn.addEventListener('click', () => {
                         resultsContainer.removeChild(libraryContainer);
+                        // 如果有保存的检测结果，则重新显示
+                        if (appState.results) {
+                            displayResults(appState.results);
+                        }
+                    });
+                }
+                
+                // 返回按钮事件
+                const backBtn = libraryContainer.querySelector('.back-to-results');
+                if (backBtn) {
+                    backBtn.addEventListener('click', () => {
+                        resultsContainer.removeChild(libraryContainer);
+                        // 重新显示检测结果
+                        if (appState.results) {
+                            displayResults(appState.results);
+                        }
                     });
                 }
             })
@@ -1659,6 +1722,17 @@
                 console.error('获取植物病害库失败:', error);
                 updateStatusMessage('获取植物病害库失败，请重试', 'error');
             });
+    }
+
+    // 添加一个辅助函数用于根据严重程度获取对应的CSS类
+    function getSeverityClass(severity) {
+        if (!severity) return 'unknown';
+        
+        if (severity.toLowerCase().includes('严重')) return 'severe';
+        if (severity.toLowerCase().includes('中等')) return 'moderate';
+        if (severity.toLowerCase().includes('轻微')) return 'mild';
+        
+        return 'unknown';
     }
 
     // 页面加载完成后初始化应用
