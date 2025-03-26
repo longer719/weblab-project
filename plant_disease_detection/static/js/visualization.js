@@ -1,7 +1,7 @@
 /**
  * 植物病害检测可视化工具
  * 提供病害区域可视化和交互式结果分析功能
- * 优化版：增强模块化设计，减少事件监听器数量
+ * 优化版：增强模块化设计，减少事件监听器数量，增强热图渲染功能
  */
 
 // 可视化工具命名空间
@@ -150,14 +150,17 @@ const PlantVis = (function() {
             boxColors: options.boxColors || null
         };
         
-        // 创建画布
+        // 创建画布 - 确保使用图像的原始尺寸
         const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
+        // 使用naturalWidth和naturalHeight获取原始尺寸
+        const originalWidth = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+        const originalHeight = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
         
         const ctx = canvas.getContext('2d');
         
-        // 绘制原始图像
+        // 绘制原始图像 - 确保使用原始尺寸
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         
         // 过滤分数低于阈值的检测结果
@@ -165,45 +168,62 @@ const PlantVis = (function() {
         
         // 调试输出
         console.log('绘制边界框，检测结果:', filteredDetections);
+        console.log('画布尺寸:', canvas.width, 'x', canvas.height);
         
         // 绘制每个检测框
         filteredDetections.forEach((det, index) => {
             // 检查box格式，确保使用正确的坐标
-            let x1, y1, x2, y2;
+            let x1, y1, x2, y2, width, height; // 确保所有变量都已提前声明
             
             if (Array.isArray(det.box)) {
-                // 如果box是数组格式[x1,y1,x2,y2]
-                [x1, y1, x2, y2] = det.box;
-            } else if (det.box && typeof det.box === 'object') {
-                // 如果box是对象格式{x,y,width,height}
-                x1 = det.box.x || 0;
-                y1 = det.box.y || 0;
-                x2 = x1 + (det.box.width || 0);
-                y2 = y1 + (det.box.height || 0);
+                // 如果box是数组格式 - 确保正确理解格式
+                if (det.box.length === 4) {
+                    // 检查是否为[x1, y1, x2, y2]还是[x, y, width, height]
+                    if (det.box[2] < image.width && det.box[3] < image.height) {
+                        // 可能是[x, y, width, height]格式
+                        x1 = det.box[0];
+                        y1 = det.box[1];
+                        width = det.box[2];
+                        height = det.box[3];
+                        x2 = x1 + width;
+                        y2 = y1 + height;
+                    } else {
+                        // 假设是[x1, y1, x2, y2]格式
+                        x1 = det.box[0];
+                        y1 = det.box[1];
+                        x2 = det.box[2];
+                        y2 = det.box[3];
+                    }
+                } else {
+                    console.warn('无效的边界框格式:', det.box);
+                    x1 = 0; y1 = 0; x2 = 100; y2 = 100;
+                }
             } else if (det.bbox) {
-                // 尝试使用bbox属性
+                // 从bbox对象中获取
                 x1 = det.bbox.x || 0;
                 y1 = det.bbox.y || 0;
-                x2 = x1 + (det.bbox.width || 0);
-                y2 = y1 + (det.bbox.height || 0);
+                width = det.bbox.width || 0;
+                height = det.bbox.height || 0;
+                x2 = x1 + width;
+                y2 = y1 + height;
             } else {
-                // 如果无法获取坐标，使用图像尺寸的20%作为默认检测框
+                // 默认值
+                console.warn('未找到有效的边界框坐标，使用默认值');
                 const defaultSize = Math.min(image.width, image.height) * 0.2;
                 x1 = image.width/2 - defaultSize/2;
                 y1 = image.height/2 - defaultSize/2;
                 x2 = x1 + defaultSize;
                 y2 = y1 + defaultSize;
-                console.warn('未找到有效的边界框坐标，使用默认值');
             }
             
-            // 检查坐标有效性
+            // 确保坐标在图像范围内且正确计算宽高
             x1 = Math.max(0, Math.min(x1, image.width));
             y1 = Math.max(0, Math.min(y1, image.height));
             x2 = Math.max(0, Math.min(x2, image.width));
             y2 = Math.max(0, Math.min(y2, image.height));
             
-            const width = x2 - x1;
-            const height = y2 - y1;
+            width = Math.max(1, x2 - x1);
+            height = Math.max(1, y2 - y1);
             
             // 确定框的颜色
             let boxColor;
@@ -294,21 +314,24 @@ const PlantVis = (function() {
         // 默认选项
         const opts = {
             opacity: options.opacity || 0.7,
-            radius: options.radius || 20,
-            blur: options.blur || 15,
+            radius: options.radius || 30,
+            blur: options.blur || 20,
             gradient: options.gradient || {
-                0.4: 'blue',
-                0.6: 'cyan',
-                0.7: 'lime',
+                0.2: 'blue',
+                0.4: 'cyan',
+                0.6: 'lime',
                 0.8: 'yellow',
                 1.0: 'red'
             }
         };
         
-        // 创建画布
+        // 创建画布 - 确保使用图像的原始尺寸
         const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
+        const originalWidth = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+        const originalHeight = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+        
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
         
         const ctx = canvas.getContext('2d');
         
@@ -316,10 +339,11 @@ const PlantVis = (function() {
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         
         console.log('开始渲染热图, heatmap.js可用:', !!window.h337);
+        console.log('热图画布尺寸:', canvas.width, 'x', canvas.height);
         
-        // 使用heatmap.js库生成热图
-        if (window.h337) {
-            try {
+        try {
+            // 使用heatmap.js库生成热图
+            if (window.h337) {
                 // 创建临时容器
                 const tempContainer = document.createElement('div');
                 tempContainer.style.width = `${canvas.width}px`;
@@ -328,41 +352,48 @@ const PlantVis = (function() {
                 tempContainer.style.left = '-9999px';
                 document.body.appendChild(tempContainer);
                 
-                // 创建热图实例
-                const heatmapInstance = window.h337.create({
+                // 验证热图数据的有效性
+                const validData = heatmapData.filter(point => {
+                    return point.x >= 0 && point.y >= 0 && 
+                           point.x <= canvas.width && point.y <= canvas.height &&
+                           point.radius > 0 && point.value >= 0;
+                });
+                
+                // 配置热图
+                const heatmapInstance = h337.create({
                     container: tempContainer,
                     radius: opts.radius,
                     maxOpacity: opts.opacity,
-                    minOpacity: 0,
+                    minOpacity: 0.2,  // 提高最小不透明度
                     blur: opts.blur,
                     gradient: opts.gradient
                 });
                 
-                // 设置数据
+                // 设置热图数据
                 heatmapInstance.setData({
                     max: 1,
-                    data: heatmapData
+                    min: 0.1,  // 设置最小值，避免弱信号被抹除
+                    data: validData
                 });
                 
-                // 获取热图canvas
+                // 获取热图画布
                 const heatCanvas = tempContainer.querySelector('canvas');
-                if (heatCanvas) {
-                    ctx.drawImage(heatCanvas, 0, 0);
-                    console.log('热图渲染成功');
-                } else {
-                    console.error('热图画布不存在');
-                    fallbackHeatmapRender(ctx, heatmapData, canvas.width, canvas.height);
-                }
                 
-                // 清理临时DOM
+                // 将热图叠加到原始画布上
+                ctx.globalAlpha = opts.opacity;
+                ctx.drawImage(heatCanvas, 0, 0);
+                ctx.globalAlpha = 1.0;
+                
+                // 移除临时容器
                 document.body.removeChild(tempContainer);
-            } catch (error) {
-                console.error('热图渲染出错:', error);
+            } else {
+                console.warn('heatmap.js不可用，使用备用方法渲染');
                 fallbackHeatmapRender(ctx, heatmapData, canvas.width, canvas.height);
             }
-        } else {
-            // 如果没有heatmap.js，使用简单的圆圈表示热点
-            console.log('使用备用热图渲染方法');
+        } catch (error) {
+            console.error('热图渲染出错:', error);
+            // 使用备用方法渲染
+            console.log('使用备用方法渲染热图');
             fallbackHeatmapRender(ctx, heatmapData, canvas.width, canvas.height);
         }
         
@@ -377,15 +408,61 @@ const PlantVis = (function() {
      * 当heatmap.js不可用时使用简单圆圈表示热点
      */
     function fallbackHeatmapRender(ctx, heatmapData, width, height) {
+        // 先创建一个单独的热图层
+        const heatLayer = document.createElement('canvas');
+        heatLayer.width = width;
+        heatLayer.height = height;
+        const heatCtx = heatLayer.getContext('2d');
+        
+        // 绘制每个热点
         heatmapData.forEach(point => {
-            const radius = point.radius || 20;
-            const alpha = point.value || 0.5;
+            // 确保数据有效
+            if (point.x < 0 || point.y < 0 || point.x > width || point.y > height) return;
             
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, radius, 0, Math.PI * 2, true);
-            ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
-            ctx.fill();
+            const radius = Math.max(5, point.radius || 25);
+            const alpha = Math.min(1, Math.max(0.2, point.value || 0.5));
+            
+            try {
+                // 创建径向渐变
+                const gradient = heatCtx.createRadialGradient(
+                    point.x, point.y, 0,
+                    point.x, point.y, radius
+                );
+                
+                // 设置渐变颜色 - 更丰富的颜色过渡
+                gradient.addColorStop(0, `rgba(255, 0, 0, ${alpha})`);
+                gradient.addColorStop(0.25, `rgba(255, 120, 0, ${alpha * 0.9})`);
+                gradient.addColorStop(0.5, `rgba(255, 255, 0, ${alpha * 0.7})`);
+                gradient.addColorStop(0.75, `rgba(0, 255, 128, ${alpha * 0.5})`);
+                gradient.addColorStop(1, `rgba(0, 0, 255, 0)`);
+                
+                // 绘制圆
+                heatCtx.beginPath();
+                heatCtx.arc(point.x, point.y, radius, 0, Math.PI * 2, true);
+                heatCtx.fillStyle = gradient;
+                heatCtx.fill();
+            } catch (e) {
+                console.warn('创建渐变失败，使用简单圆形', e);
+                // 简单圆形备用方案
+                heatCtx.beginPath();
+                heatCtx.arc(point.x, point.y, radius, 0, Math.PI * 2, true);
+                heatCtx.fillStyle = `rgba(255, 0, 0, ${alpha * 0.7})`;
+                heatCtx.fill();
+            }
         });
+        
+        // 应用模糊效果使热图更平滑
+        try {
+            heatCtx.filter = 'blur(15px)';
+            heatCtx.drawImage(heatLayer, 0, 0);
+        } catch (e) {
+            console.warn('应用模糊效果失败', e);
+        }
+        
+        // 将热图层叠加到主画布上
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(heatLayer, 0, 0);
+        ctx.globalAlpha = 1.0;
     }
     
     /**
@@ -403,68 +480,57 @@ const PlantVis = (function() {
         state.originalImage = image;
         state.currentDetections = detections;
         
-        // 首先绘制边界框
-        const boxCanvas = renderDetectionBoxes(image, detections, options);
+        // 选项整合
+        const opts = {
+            scoreThreshold: options.scoreThreshold || state.threshold,
+            boxOpacity: options.boxOpacity || 0.8,
+            heatmapOpacity: options.heatmapOpacity || 0.6
+        };
         
         // 过滤检测结果
-        const filteredDetections = detections.filter(det => det.score >= (options.scoreThreshold || state.threshold));
+        const filteredDetections = detections.filter(det => det.score >= opts.scoreThreshold);
         
-        // 生成热图数据
-        const heatmapData = detectionsToHeatmap(filteredDetections, image.width, image.height);
-        
-        // 创建最终画布
+        // 创建最终画布 - 确保使用图像的原始尺寸
         const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
+        const originalWidth = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+        const originalHeight = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+        
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
+        
         const ctx = canvas.getContext('2d');
         
-        // 绘制边界框结果
-        ctx.drawImage(boxCanvas, 0, 0);
+        // 先绘制原始图像
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         
-        // 使用heatmap.js库生成热图
-        if (window.h337) {
-            // 创建临时容器
-            const tempContainer = document.createElement('div');
-            tempContainer.style.width = `${canvas.width}px`;
-            tempContainer.style.height = `${canvas.height}px`;
-            tempContainer.style.position = 'absolute';
-            tempContainer.style.left = '-9999px';
-            document.body.appendChild(tempContainer);
+        console.log('混合模式画布尺寸:', canvas.width, 'x', canvas.height);
+        
+        try {
+            // 生成热图层
+            const heatmapData = detectionsToHeatmap(filteredDetections, image.width, image.height);
+            const heatLayer = document.createElement('canvas');
+            heatLayer.width = image.width;
+            heatLayer.height = image.height;
+            const heatCtx = heatLayer.getContext('2d');
             
-            // 配置热图
-            const heatmapInstance = h337.create({
-                container: tempContainer,
-                radius: options.radius || 30,
-                maxOpacity: 0.6,
-                minOpacity: 0,
-                blur: 0.75,
-                gradient: options.gradient || {
-                    0.4: 'blue',
-                    0.6: 'cyan',
-                    0.7: 'lime',
-                    0.8: 'yellow',
-                    1.0: 'red'
-                }
-            });
+            // 使用备用方法渲染热图 (更可靠)
+            fallbackHeatmapRender(heatCtx, heatmapData, image.width, image.height);
             
-            // 设置热图数据
-            heatmapInstance.setData({
-                max: 1,
-                data: heatmapData
-            });
-            
-            // 获取热图画布
-            const heatCanvas = tempContainer.querySelector('canvas');
-            
-            // 将热图叠加到原始画布上
-            ctx.globalAlpha = 0.5;  // 半透明叠加
-            ctx.drawImage(heatCanvas, 0, 0);
+            // 叠加热图层
+            ctx.globalAlpha = opts.heatmapOpacity;
+            ctx.drawImage(heatLayer, 0, 0);
             ctx.globalAlpha = 1.0;
             
-            // 移除临时容器
-            document.body.removeChild(tempContainer);
-        } else {
-            console.warn('heatmap.js不可用，使用备选方法渲染');
+            // 最后叠加边界框
+            const boxOpts = {...options, opacity: opts.boxOpacity};
+            const boxCanvas = renderDetectionBoxes(image, filteredDetections, boxOpts);
+            
+            // 从边界框画布中只提取边界框部分 (忽略背景)
+            ctx.drawImage(boxCanvas, 0, 0);
+        } catch (error) {
+            console.error('混合模式渲染出错：', error);
+            // 出错时至少保证显示边界框
+            const boxCanvas = renderDetectionBoxes(image, filteredDetections, options);
             ctx.drawImage(boxCanvas, 0, 0);
         }
         
@@ -475,10 +541,112 @@ const PlantVis = (function() {
     }
 
     /**
+     * 创建类GradCAM效果热图 (简化版)
+     */
+    function createGradCAMLikeHeatmap(image, detections, options = {}) {
+        // 默认选项
+        const opts = {
+            opacity: options.opacity || 0.7,
+            threshold: options.threshold || 0.3
+        };
+        
+        // 创建画布 - 确保使用图像的原始尺寸
+        const canvas = document.createElement('canvas');
+        const originalWidth = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+        const originalHeight = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+        
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // 绘制原始图像
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        
+        // 过滤检测结果
+        const filteredDetections = detections.filter(det => det.score >= opts.threshold);
+        
+        console.log('GradCAM画布尺寸:', canvas.width, 'x', canvas.height);
+        
+        // 其余代码保持不变...
+        
+        // 创建热图层
+        const heatLayer = document.createElement('canvas');
+        heatLayer.width = image.width;
+        heatLayer.height = image.height;
+        const heatCtx = heatLayer.getContext('2d');
+        
+        // 为每个检测创建热区
+        filteredDetections.forEach(det => {
+            let box;
+            if (Array.isArray(det.box)) {
+                box = det.box; // [x1, y1, x2, y2]
+            } else if (det.bbox) {
+                const bbox = det.bbox;
+                box = [bbox.x, bbox.y, bbox.x + bbox.width, bbox.y + bbox.height];
+            } else {
+                return; // 跳过无效检测
+            }
+            
+            // 确保坐标有效
+            const x1 = Math.max(0, Math.min(box[0], canvas.width));
+            const y1 = Math.max(0, Math.min(box[1], canvas.height));
+            const x2 = Math.max(0, Math.min(box[2], canvas.width));
+            const y2 = Math.max(0, Math.min(box[3], canvas.height));
+            
+            const width = Math.max(1, x2 - x1);
+            const height = Math.max(1, y2 - y1);
+            
+            // 创建类GradCAM热区 (中心热度较高，边缘较低)
+            const centerX = x1 + width / 2;
+            const centerY = y1 + height / 2;
+            const radius = Math.max(width, height) * 0.75;
+            
+            try {
+                // 创建径向渐变
+                const gradient = heatCtx.createRadialGradient(
+                    centerX, centerY, 0,
+                    centerX, centerY, radius
+                );
+                
+                // 根据置信度调整透明度
+                const alpha = det.score * opts.opacity;
+                
+                // GradCAM常用的红-黄配色
+                gradient.addColorStop(0, `rgba(255, 0, 0, ${alpha})`);
+                gradient.addColorStop(0.6, `rgba(255, 165, 0, ${alpha * 0.8})`);
+                gradient.addColorStop(0.8, `rgba(255, 255, 0, ${alpha * 0.5})`);
+                gradient.addColorStop(1, `rgba(255, 255, 0, 0)`);
+                
+                // 填充热区
+                heatCtx.fillStyle = gradient;
+                heatCtx.fillRect(x1, y1, width, height);
+            } catch (e) {
+                console.warn('创建GradCAM渐变失败：', e);
+                // 简单备用方案
+                heatCtx.fillStyle = `rgba(255, 0, 0, ${det.score * 0.6})`;
+                heatCtx.fillRect(x1, y1, width, height);
+            }
+        });
+        
+        // 应用模糊效果
+        try {
+            heatCtx.filter = 'blur(10px)';
+            heatCtx.drawImage(heatLayer, 0, 0);
+        } catch (e) {
+            console.warn('应用模糊效果失败', e);
+        }
+        
+        // 叠加热图层到原始图像
+        ctx.globalAlpha = opts.opacity;
+        ctx.drawImage(heatLayer, 0, 0);
+        ctx.globalAlpha = 1.0;
+        
+        return canvas;
+    }
+
+    /**
      * 在指定容器中显示可视化内容
-     * @param {HTMLElement} container - 容器元素
-     * @param {HTMLCanvasElement} canvas - 绘制好的画布
-     * @param {Object} options - 显示选项
      */
     function displayVisualization(container, canvas, options = {}) {
         if (!container || !canvas) return;
@@ -486,10 +654,15 @@ const PlantVis = (function() {
         // 清空容器
         container.innerHTML = '';
         
-        // 添加画布和设置样式
+        // 添加画布和设置样式 - 使用CSS控制显示尺寸
         canvas.style.maxWidth = '100%';
         canvas.style.height = 'auto';
         container.appendChild(canvas);
+        
+        // 记录画布实际渲染尺寸和显示尺寸
+        console.log('显示可视化：画布实际尺寸', canvas.width, 'x', canvas.height);
+        
+        // 其余代码保持不变...
         
         // 保存当前可视化状态
         state.lastRenderedCanvas = canvas;
@@ -616,10 +789,10 @@ const PlantVis = (function() {
 
     /**
      * 更改可视化模式
-     * @param {string} mode - 可视化模式 ('boxes', 'heatmap', 'blend')
+     * @param {string} mode - 可视化模式 ('boxes', 'heatmap', 'blend', 'gradcam')
      */
     function changeVisualizationMode(mode) {
-        if (!['boxes', 'heatmap', 'blend'].includes(mode)) {
+        if (!['boxes', 'heatmap', 'blend', 'gradcam'].includes(mode)) {
             console.error('无效的可视化模式:', mode);
             return;
         }
@@ -700,57 +873,116 @@ const PlantVis = (function() {
 
     /**
      * 将检测结果转换为热图数据
-     * @param {Array} detections - 检测结果数组
-     * @param {number} imageWidth - 图像宽度
-     * @param {number} imageHeight - 图像高度
-     * @returns {Array} 热图数据点数组
      */
     function detectionsToHeatmap(detections, imageWidth, imageHeight) {
         const heatmapData = [];
+        console.log('转换热图数据，图像尺寸:', imageWidth, 'x', imageHeight);
         console.log(detections);
+        
+        // 确保检测结果不为空
+        if (!detections || detections.length === 0) {
+            return heatmapData;
+        }
+        
+        // 图像尺寸检查
+        imageWidth = Math.max(1, imageWidth || 100);
+        imageHeight = Math.max(1, imageHeight || 100);
+        
+        // 更好的热图基础大小计算
+        const diagonalLength = Math.sqrt(imageWidth * imageWidth + imageHeight * imageHeight);
+        const baseRadius = diagonalLength * 0.05; // 更小的基础半径
+        
         detections.forEach(det => {
-            if (det.score < 0.3) return; // 忽略低置信度检测
+            // 获取边界框 - 使用更稳健的处理方式
+            let box;
+            let x1, y1, x2, y2, width, height;
             
-            const [x1, y1, x2, y2] = det.box;
+            if (Array.isArray(det.box)) {
+                box = det.box;
+                // 检测是[x1,y1,x2,y2]还是[x,y,width,height]格式
+                if (det.box[2] < imageWidth && det.box[3] < imageHeight) {
+                    // 可能是[x,y,width,height]
+                    [x1, y1, width, height] = det.box;
+                    x2 = x1 + width;
+                    y2 = y1 + height;
+                } else {
+                    // 假定是[x1,y1,x2,y2]
+                    [x1, y1, x2, y2] = det.box;
+                    width = x2 - x1;
+                    height = y2 - y1;
+                }
+            } else if (det.bbox) {
+                x1 = det.bbox.x || 0;
+                y1 = det.bbox.y || 0;
+                width = det.bbox.width || 0;
+                height = det.bbox.height || 0;
+                x2 = x1 + width;
+                y2 = y1 + height;
+                box = [x1, y1, x2, y2];
+            } else {
+                // 如果没有边界框数据，使用整个图像
+                x1 = 0;
+                y1 = 0;
+                x2 = imageWidth;
+                y2 = imageHeight;
+                width = imageWidth;
+                height = imageHeight;
+                box = [x1, y1, x2, y2];
+            }
+            
+            // 确保坐标有效
+            x1 = Math.max(0, Math.min(x1, imageWidth));
+            y1 = Math.max(0, Math.min(y1, imageHeight));
+            x2 = Math.max(0, Math.min(x2, imageWidth));
+            y2 = Math.max(0, Math.min(y2, imageHeight));
+            width = Math.max(1, x2 - x1);
+            height = Math.max(1, y2 - y1);
+            
+            // 计算中心点
             const centerX = (x1 + x2) / 2;
             const centerY = (y1 + y2) / 2;
-            const width = x2 - x1;
-            const height = y2 - y1;
-            const area = width * height;
             
-            // 主点 - 在中心位置添加强度最高的点
+            // 添加主中心点 - 更精确的配置
+            const mainPointRadius = Math.max(width, height) * 0.4;
             heatmapData.push({
                 x: centerX,
                 y: centerY,
-                value: det.score,
-                radius: Math.max(width, height) * 0.25 // 动态调整半径
+                value: det.score || 0.5,
+                radius: mainPointRadius
             });
             
-            // 为较大区域添加更多点
-            if (area > 5000) { // 阈值可以根据实际情况调整
-                // 在框内添加随机分布的点
-                const pointCount = Math.min(Math.floor(area / 2000), 15); // 最多15个额外点
+            // 根据置信度和区域大小添加更多点
+            const confidence = det.score || 0.5;
+            const pointCount = 5 + Math.floor(confidence * 10); // 更多点
+            const maxRadius = Math.min(width, height) * 0.3;
+            
+            // 在区域内添加随机点，形成更自然的热图
+            for (let i = 0; i < pointCount; i++) {
+                // 使用高斯分布生成更自然的散布
+                const u = Math.random() * 2 - 1; // -1 到 1
+                const v = Math.random() * 2 - 1; // -1 到 1
+                const distance = Math.sqrt(u*u + v*v) * 0.7; // 标准差缩放
                 
-                for (let i = 0; i < pointCount; i++) {
-                    // 添加随机位置的点
-                    const rx = x1 + Math.random() * width;
-                    const ry = y1 + Math.random() * height;
-                    
-                    // 距离中心越远，值越小
-                    const distanceToCenter = Math.sqrt(
-                        Math.pow(rx - centerX, 2) + 
-                        Math.pow(ry - centerY, 2)
-                    );
-                    const maxDistance = Math.sqrt(Math.pow(width/2, 2) + Math.pow(height/2, 2));
-                    const distanceRatio = 1 - Math.min(distanceToCenter / maxDistance, 1);
-                    
-                    heatmapData.push({
-                        x: rx,
-                        y: ry,
-                        value: det.score * distanceRatio * 0.8, // 根据距离衰减
-                        radius: Math.max(width, height) * 0.15 // 较小的半径
-                    });
-                }
+                if (distance > 1) continue; // 丢弃超出单位圆的点
+                
+                // 将点映射到边界框内
+                const offsetX = u * width * 0.4;
+                const offsetY = v * height * 0.4;
+                
+                const pointX = Math.max(0, Math.min(centerX + offsetX, imageWidth));
+                const pointY = Math.max(0, Math.min(centerY + offsetY, imageHeight));
+                
+                // 中心附近点的值更高
+                const distanceFromCenter = Math.sqrt(offsetX*offsetX + offsetY*offsetY) / Math.sqrt(width*width + height*height);
+                const pointValue = confidence * (1 - distanceFromCenter*0.8);
+                const pointRadius = maxRadius * (1 - distanceFromCenter*0.5);
+                
+                heatmapData.push({
+                    x: pointX,
+                    y: pointY,
+                    value: pointValue,
+                    radius: pointRadius
+                });
             }
         });
         
@@ -766,6 +998,7 @@ const PlantVis = (function() {
         renderDetectionBoxes,
         renderHeatmap,
         renderBlendMode,
+        createGradCAMLikeHeatmap,  // 添加新方法
         displayVisualization,
         
         // 控制方法
