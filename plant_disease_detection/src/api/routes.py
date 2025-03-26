@@ -447,7 +447,7 @@ def get_plant_diseases():
                     # 创建病害摘要信息
                     disease_summary = {
                         "name": disease,
-                        "symptoms_summary": info.get("symptoms", ["无症状描述"])[0] if isinstance(info.get("symptoms"), list) else "无症状描述",
+                        "symptoms_summary": info.get("symptoms", ["无症状描述"])[0] if isinstance(info.get("symptoms"), list) and info.get("symptoms") else "无症状描述",
                         "severity": info.get("severity", "未知"),
                         "has_treatment": bool(info.get("treatments", []))
                     }

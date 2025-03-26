@@ -1639,8 +1639,11 @@
                                 <div class="severity ${getSeverityClass(detectedDiseaseInfo.severity)}">
                                     严重程度: ${detectedDiseaseInfo.severity || '未知'}
                                 </div>
-                                <button class="action-button primary view-treatment-btn" 
-                                    onclick="showDetailedTreatment({plant_name:'${plantType}', disease_name:'${detectedDiseaseInfo.name}'})">
+                                 <button class="action-button primary view-treatment-btn" 
+                                    onclick="fetch('/api/treatment?plant=${encodeURIComponent(plantType)}&disease=${encodeURIComponent(detectedDiseaseInfo.name)}')
+                                        .then(res => res.json())
+                                        .then(data => showDetailedTreatment(data))
+                                        .catch(err => console.error('获取治疗信息失败:', err))">
                                     查看详细治疗方案
                                 </button>
                             </div>
