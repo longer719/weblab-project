@@ -243,96 +243,218 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     
     logging.info(f"创建数据加载器: 训练={len(train_dataset)}样本/{len(train_loader)}批次, 验证={len(val_dataset)}样本/{len(val_loader)}批次")
     
-    # 配置优化器
+    # 获取训练配置参数
     train_config = config.get('train', {})
-    lr = config_manager.get_dict_compatible(train_config, "lr", 0.001, "train")
+    
+    # 读取渐进式微调相关参数
+    total_epochs = config_manager.get_dict_compatible(train_config, "epochs", 50, "train")
+    warmup_epochs = config_manager.get_dict_compatible(train_config, "warmup_epochs", 5, "train")
+    head_lr = config_manager.get_dict_compatible(train_config, "lr", 0.001, "train")
+    backbone_lr = config_manager.get_dict_compatible(train_config, "backbone_lr", 0.00001, "train")  # 骨干网络学习率默认很小
     weight_decay = config_manager.get_dict_compatible(train_config, "weight_decay", 0.0001, "train")
     optimizer_name = config_manager.get_dict_compatible(train_config, "optimizer", "AdamW", "train")
     
-    # 选择优化器
-    if optimizer_name == 'AdamW':
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    elif optimizer_name == 'SGD':
+    # ===== 阶段1: 仅训练检测头部 =====
+    logging.info(f"--- [阶段 1/2] 开始训练检测器头部 ({warmup_epochs} epochs) ---")
+    
+    # 冻结骨干网络
+    if hasattr(model, 'backbone'):
+        logging.info("冻结骨干网络参数...")
+        for param in model.backbone.parameters():
+            param.requires_grad = False
+    else:
+        logging.warning("模型未找到 'backbone' 属性，将训练所有可训练层。")
+    
+    # 获取检测头部参数
+    head_params = []
+    
+    # 对于自定义检测器，需要获取所有未被冻结的参数
+    # 对于Faster R-CNN结构的检测器
+    if hasattr(model, 'rpn') and hasattr(model, 'roi_heads'):
+        logging.info("获取RPN和ROI头部参数...")
+        head_params.extend(list(model.rpn.parameters()))
+        head_params.extend(list(model.roi_heads.parameters()))
+    elif hasattr(model, 'detector'):
+        # 如果检测器封装在detector属性中
+        if hasattr(model.detector, 'rpn') and hasattr(model.detector, 'roi_heads'):
+            logging.info("获取封装检测器中的RPN和ROI头部参数...")
+            head_params.extend(list(model.detector.rpn.parameters()))
+            head_params.extend(list(model.detector.roi_heads.parameters()))
+    
+    # 如果没有找到特定的头部参数，使用所有可训练参数
+    if not head_params:
+        logging.warning("未找到特定的检测头部参数，将使用所有可训练参数。")
+        head_params = [p for p in model.parameters() if p.requires_grad]
+    
+    logging.info(f"检测头部参数数量: {sum(p.numel() for p in head_params)}")
+    
+    # 创建第一阶段优化器
+    if optimizer_name == "AdamW":
+        optimizer_stage1 = torch.optim.AdamW(head_params, lr=head_lr, weight_decay=weight_decay)
+    elif optimizer_name == "SGD":
         momentum = config_manager.get_dict_compatible(train_config, "momentum", 0.9, "train")
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+        optimizer_stage1 = torch.optim.SGD(head_params, lr=head_lr, momentum=momentum, weight_decay=weight_decay)
     else:
         raise ValueError(f"不支持的优化器: {optimizer_name}")
     
-    # 创建学习率调度器配置
+    # 创建第一阶段学习率调度器
     scheduler_name = config_manager.get_dict_compatible(train_config, "scheduler", "CosineAnnealingLR", "train")
-    scheduler_config = {
+    scheduler_config_stage1 = {
         'type': scheduler_name,
         'args': {},
-        'warmup_epochs': config_manager.get_dict_compatible(train_config, "warmup_epochs", 5, "train")
+        'warmup_epochs': config_manager.get_dict_compatible(train_config, "warmup_epochs", 0, "train")
     }
     
     if scheduler_name == 'CosineAnnealingLR':
-        epochs = config_manager.get_dict_compatible(train_config, "epochs", 50, "train")
-        scheduler_config['args'] = {'T_max': epochs}
+        scheduler_config_stage1['args'] = {'T_max': warmup_epochs}
     elif scheduler_name == 'MultiStepLR':
-        scheduler_config['args'] = {'milestones': [30, 60, 90], 'gamma': 0.1}
+        scheduler_config_stage1['args'] = {'milestones': [warmup_epochs // 2], 'gamma': 0.1}
     elif scheduler_name == 'ReduceLROnPlateau':
-        scheduler_config['args'] = {'mode': 'min', 'factor': 0.5, 'patience': 5}
+        scheduler_config_stage1['args'] = {'mode': 'min', 'factor': 0.5, 'patience': 2}
     
-    # 创建Trainer配置
-    trainer_config = {
-        'epochs': config_manager.get_dict_compatible(train_config, "epochs", 50, "train"),
+    # 创建第一阶段训练器配置
+    trainer_config_stage1 = {
+        'epochs': warmup_epochs,
         'save_freq': config_manager.get_dict_compatible(train_config, "save_interval", 5, "train"),
         'mixed_precision': config_manager.get_dict_compatible(train_config, "mixed_precision", True, "train"),
-        'grad_clip': config_manager.get_dict_compatible(train_config, "grad_clip", 1.0, "train"),  # 减小到1.0以提高稳定性
-        'grad_accumulation_steps': config_manager.get_dict_compatible(train_config, "grad_accumulation_steps", 4, "train"),
-        # 添加梯度累积，处理更复杂的场景
-        'scheduler': scheduler_config,
+        'grad_clip': config_manager.get_dict_compatible(train_config, "grad_clip", 1.0, "train"),
+        'grad_accumulation_steps': config_manager.get_dict_compatible(train_config, "grad_accumulation_steps", 1, "train"),
+        'scheduler': scheduler_config_stage1,
         'early_stopping': {
-            'patience': 15,  # 增加耐心值
+            'patience': 15,
             'delta': 0.001,
-            'mode': 'min'
+            'mode': 'max',
+            'monitor': 'mAP'
         },
         'tensorboard': {
             'enabled': True,
-            'log_dir': str(experiment_dir / 'tensorboard')
-        },
-        # 添加检查点配置
-        'checkpointing': {
-            'enabled': True,
-            'interval': 5,  # 每5个epoch保存一次
-            'save_best_only': True,
-            'save_dir': str(experiment_dir / 'checkpoints')
+            'log_dir': str(experiment_dir / 'tensorboard' / 'stage1')
         }
     }
     
-    # 创建训练器
-    trainer = Trainer(
+    # 创建第一阶段训练器
+    trainer_stage1 = Trainer(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
         criterion=None,  # 检测模型内部有损失函数
-        optimizer=optimizer,
-        config=trainer_config,
+        optimizer=optimizer_stage1,
+        config=trainer_config_stage1,
         device=device_name,
         task_type='detection',
         class_names=train_dataset.class_names if hasattr(train_dataset, 'class_names') else None
     )
     
-    # 如果提供了检查点路径，从检查点恢复
-    if checkpoint_path:
-        trainer.load_checkpoint(checkpoint_path)
+    # 如果提供了检查点路径，且是第一次训练，从检查点恢复
+    if checkpoint_path and warmup_epochs > 0:
+        trainer_stage1.load_checkpoint(checkpoint_path)
         logging.info(f"成功从检查点恢复: {checkpoint_path}")
     
-    # 执行训练
-    logging.info(f"开始训练检测器，epochs: {trainer_config['epochs']}")
-    train_results = trainer.train(trainer_config['epochs'], str(experiment_dir / 'checkpoints'))
+    # 创建第一阶段检查点目录
+    checkpoints_dir_stage1 = experiment_dir / "checkpoints" / "stage1"
+    checkpoints_dir_stage1.mkdir(parents=True, exist_ok=True)
+    
+    # 执行第一阶段训练
+    logging.info(f"开始第一阶段训练，epochs: {warmup_epochs}")
+    stage1_results = trainer_stage1.train(warmup_epochs, str(checkpoints_dir_stage1))
+    
+    # ===== 阶段2: 微调整个模型 =====
+    logging.info(f"\n--- [阶段 2/2] 开始微调整个检测器 ({total_epochs - warmup_epochs} epochs) ---")
+    
+    # 解冻骨干网络
+    if hasattr(model, 'backbone'):
+        logging.info("解冻骨干网络参数...")
+        for param in model.backbone.parameters():
+            param.requires_grad = True
+    
+    # 构建差分学习率参数组
+    param_groups = []
+    
+    # 获取骨干网络参数
+    backbone_params = []
+    if hasattr(model, 'backbone'):
+        backbone_params = list(model.backbone.parameters())
+        param_groups.append({'params': backbone_params, 'lr': backbone_lr})  # 骨干网络低学习率
+    
+    # 获取检测头参数
+    if head_params:
+        param_groups.append({'params': head_params, 'lr': head_lr})  # 头部高学习率
+    
+    # 创建第二阶段优化器
+    if optimizer_name == "AdamW":
+        optimizer_stage2 = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
+    elif optimizer_name == "SGD":
+        momentum = config_manager.get_dict_compatible(train_config, "momentum", 0.9, "train")
+        optimizer_stage2 = torch.optim.SGD(param_groups, momentum=momentum, weight_decay=weight_decay)
+    else:
+        raise ValueError(f"不支持的优化器: {optimizer_name}")
+    
+    # 创建第二阶段学习率调度器
+    remaining_epochs = total_epochs - warmup_epochs
+    scheduler_config_stage2 = {
+        'type': scheduler_name,
+        'args': {},
+        'warmup_epochs': 0  # 第二阶段不需要预热
+    }
+    
+    if scheduler_name == 'CosineAnnealingLR':
+        scheduler_config_stage2['args'] = {'T_max': remaining_epochs}
+    elif scheduler_name == 'MultiStepLR':
+        scheduler_config_stage2['args'] = {'milestones': [remaining_epochs // 3, remaining_epochs * 2 // 3], 'gamma': 0.1}
+    elif scheduler_name == 'ReduceLROnPlateau':
+        scheduler_config_stage2['args'] = {'mode': 'min', 'factor': 0.5, 'patience': 5}
+    
+    # 创建第二阶段训练器配置
+    trainer_config_stage2 = {
+        'epochs': remaining_epochs,
+        'save_freq': config_manager.get_dict_compatible(train_config, "save_interval", 5, "train"),
+        'mixed_precision': config_manager.get_dict_compatible(train_config, "mixed_precision", True, "train"),
+        'grad_clip': config_manager.get_dict_compatible(train_config, "grad_clip", 1.0, "train"),
+        'grad_accumulation_steps': config_manager.get_dict_compatible(train_config, "grad_accumulation_steps", 1, "train"),
+        'scheduler': scheduler_config_stage2,
+        'early_stopping': {
+            'patience': 15,
+            'delta': 0.001,
+            'mode': 'max',
+            'monitor': 'mAP'
+        },
+        'tensorboard': {
+            'enabled': True,
+            'log_dir': str(experiment_dir / 'tensorboard' / 'stage2')
+        }
+    }
+    
+    # 创建第二阶段训练器
+    trainer_stage2 = Trainer(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=None,
+        optimizer=optimizer_stage2,
+        config=trainer_config_stage2,
+        device=device_name,
+        task_type='detection',
+        class_names=train_dataset.class_names if hasattr(train_dataset, 'class_names') else None
+    )
+    
+    # 创建第二阶段检查点目录
+    checkpoints_dir_stage2 = experiment_dir / "checkpoints" / "stage2"
+    checkpoints_dir_stage2.mkdir(parents=True, exist_ok=True)
+    
+    # 执行第二阶段训练
+    logging.info(f"开始第二阶段训练，epochs: {remaining_epochs}")
+    stage2_results = trainer_stage2.train(remaining_epochs, str(checkpoints_dir_stage2))
     
     # 训练完成后，添加训练损失的可视化
     losses_dir = experiment_dir / "losses"
     losses_dir.mkdir(parents=True, exist_ok=True)
     
+    # 合并两个阶段的训练历史
+    train_history = stage1_results.get('train_metrics', []) + stage2_results.get('train_metrics', [])
+    val_history = stage1_results.get('val_metrics', []) + stage2_results.get('val_metrics', [])
+    
     # 绘制训练损失曲线
     plt.figure(figsize=(12, 8))
-    
-    # 获取训练历史
-    train_history = train_results['train_metrics']
-    val_history = train_results['val_metrics']
     
     epochs_range = range(1, len(train_history) + 1)
     
@@ -371,17 +493,24 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     lr_history = []
     for i in range(len(train_history)):
         # 尝试从训练结果中获取学习率，如果没有则使用前一个值或初始值
-        if hasattr(trainer, '_get_lr') and i < len(trainer._get_lr()):
-            lr_history.append(trainer._get_lr()[0])
-        elif i > 0 and lr_history:
-            lr_history.append(lr_history[-1])
+        if i < warmup_epochs:
+            current_lr = head_lr
         else:
-            lr_history.append(lr)
+            if i-warmup_epochs < len(stage2_results.get('train_metrics', [])) and hasattr(trainer_stage2, '_get_lr'):
+                current_lr = trainer_stage2._get_lr()[0]
+            elif i > 0 and lr_history:
+                current_lr = lr_history[-1]
+            else:
+                current_lr = backbone_lr
+        
+        lr_history.append(current_lr)
             
     plt.plot(epochs_range, lr_history, 'g-')
+    plt.axvline(x=warmup_epochs, color='k', linestyle='--', label='阶段切换')
     plt.title('学习率')
     plt.xlabel('Epoch')
     plt.ylabel('Learning rate')
+    plt.legend()
     plt.grid(True)
     
     plt.tight_layout()
@@ -398,11 +527,13 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     evaluation_results = evaluate_detector(model, test_dataset, experiment_dir)
     
     # 返回模型和训练结果，添加评估结果
-    return model, {
-        'train_history': train_results['train_metrics'],
-        'val_history': train_results['val_metrics'],
+    combined_results = {
+        'train_metrics': train_history,
+        'val_metrics': val_history,
         'evaluation': evaluation_results
     }
+    
+    return model, combined_results
 
 
 def evaluate_detector(model: DiseaseDetector, dataset: DetectionDataset, experiment_dir: Path) -> Dict[str, float]:

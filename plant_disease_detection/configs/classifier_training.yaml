@@ -17,7 +17,7 @@ model:
   backbone: "resnet101"  # 使用深层网络更好地捕获丰富的特征
   num_classes: 38       # 全部PlantVillage类别
   pretrained: true
-  dropout_rate: 0.4     # 轻微增加dropout防止过拟合
+  dropout_rate: 0.5     # 增加到0.5，进一步提高正则化效果
   in_channels: 3
 
 # 训练配置 - 针对RTX 4090D优化
@@ -29,7 +29,9 @@ train:
   weight_decay: 0.01    # 正则化
   mixed_precision: true # 使用混合精度训练加速
   seed: 42
-  warmup_epochs: 5
+  warmup_epochs: 5      # 新增: 第一阶段只训练头部的轮数
+  backbone_lr: 0.00001  # 新增: 第二阶段backbone的学习率(显著小于头部)
+  label_smoothing: 0.1  # 新增: 标签平滑系数(0.1通常是很好的起点)
   save_interval: 5      # 每5个epoch保存一次
   early_stopping:
     patience: 15        # 增加耐心值
@@ -39,4 +41,4 @@ train:
   device: "cuda"
 
 # 实验命名
-experiment_name: "plant_classifier_v03_full_dataset"
+experiment_name: "plant_classifier_second_version_full_dataset"

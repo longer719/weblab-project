@@ -38,9 +38,10 @@ train:
   scheduler: "CosineAnnealingLR"
   weight_decay: 0.0005
   mixed_precision: true  # 使用混合精度加速训练
+  warmup_epochs: 3       # 新增: 第一阶段只训练头部的轮数
+  backbone_lr: 0.00005   # 新增: 第二阶段backbone的学习率(显著小于头部)
   grad_accumulation_steps: 2  # 梯度累积，相当于加倍批次大小
   seed: 42
-  warmup_epochs: 3
   save_interval: 5
   vis_samples: 10
   early_stopping:
@@ -51,4 +52,4 @@ train:
   device: "cuda"
 
 # 实验命名
-experiment_name: "disease_detector_v03_full_dataset"
+experiment_name: "disease_detector_second_version_full_dataset"

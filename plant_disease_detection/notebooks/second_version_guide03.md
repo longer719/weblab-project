@@ -7,6 +7,20 @@
 **详细优化方案实施细则**
 
 **一、 数据增强强化 (提升鲁棒性)**
+对augmentation.py增加数据增强方法如：
+RandomAutocontrast：自动对比度增强
+RandomEqualize：直方图均衡化
+Lambda函数实现的随机Gamma调整
+随机仿射变换：模拟不同视角和拍摄位置的变化
+高斯模糊：模拟失焦或相机抖动
+高斯噪声：模拟传感器噪声
+增强的随机擦除：模拟部分遮挡或信息缺失
+
+显著提高模型在以下情况下的鲁棒性：
+植物被拍摄在不同角度和距离
+图像有轻微模糊或抖动
+图像质量不佳，包含噪声
+植物部分被遮挡或叶片重叠
 
 *   **方案 1.1: 强化颜色与光照增强 (低复杂度)**
     *   **目标:** 提高模型对不同光照强度、色温和对比度的适应性。
@@ -88,6 +102,33 @@
         6.  **训练阶段 2:** 继续训练剩余的 epochs。
     *   **预期效果:** 提升基于预训练模型的微调性能，特别是在数据集与预训练数据集差异较大时。
     *   **集成与兼容性:** 改变训练脚本逻辑，但模型本身和 API 不受影响。需要在配置文件中添加 `head_lr`, `backbone_lr`, `warmup_epochs` 等参数。
+关键点解释:
+
+两阶段循环: 将原来的单个训练循环拆分为两个：一个用于 Warmup，一个用于 Fine-tuning。
+
+冻结/解冻: 使用 param.requires_grad = False/True 来控制骨干网络的参数是否参与梯度计算和更新。
+
+两个优化器:
+
+optimizer_stage1 只包含头部参数，使用 head_lr。
+
+optimizer_stage2 包含两个参数组 (param_groups)，分别为 backbone 设置 backbone_lr，为 head 设置 head_lr (或调整后的值)。这是实现差分学习率的关键。
+
+调度器处理: 第二阶段的调度器需要重新创建或调整，其 T_max 或 step_size 等参数应基于剩余的训练轮数 (total_epochs - warmup_epochs)。
+
+与 Trainer 类的交互: 上述示例假设你直接在训练脚本中控制循环。如果你想将逻辑移入 Trainer 类，需要：
+
+给 Trainer 添加 current_stage 属性。
+
+修改 Trainer.train 方法以处理两个阶段。
+
+让 Trainer._train_epoch 和 _validate_epoch 使用当前阶段对应的优化器和调度器。这会增加 Trainer 的复杂度，但更通用。对于毕设，直接在脚本中写两阶段循环可能更直接。
+
+检测模型适配: 对于 train_detector.py，逻辑类似。
+
+"Head" 参数通常包括 model.rpn 和 model.roi_heads 的参数。
+
+你需要正确识别并分离出这些参数传递给 optimizer_stage1 和 optimizer_stage2 的相应参数组。
 
 *   **方案 2.3: 尝试 AdamW 优化器 (低复杂度)**
     *   **目标:** 使用普遍认为泛化性更好的 AdamW。

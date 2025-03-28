@@ -178,8 +178,7 @@ def create_model(config):
     
     return model
 
-# 修改train_model函数，添加RTX 4090D优化
-
+# 修改 train_model 函数，添加渐进式微调支持
 def train_model(model, train_loader, val_loader, config, experiment_dir):
     """训练模型"""
     config_manager = ConfigManager()
@@ -188,9 +187,19 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
     device = config.get("device", 
         config_manager.get("device", "cuda" if torch.cuda.is_available() else "cpu", "train"))
     epochs = config.get("epochs", 
-        config_manager.get("epochs", 100, "train"))  # 增加到100轮，充分训练
+        config_manager.get("epochs", 100, "train"))  
     learning_rate = config.get("learning_rate", 
-        config_manager.get("learning_rate", 0.0001, "train"))  # 降低学习率
+        config_manager.get("learning_rate", 0.0001, "train"))
+    
+    # 新增: 读取微调相关参数
+    warmup_epochs = config.get("warmup_epochs", 
+        config_manager.get("warmup_epochs", 5, "train"))
+    backbone_lr = config.get("backbone_lr", 
+        config_manager.get("backbone_lr", 0.00001, "train"))
+    
+    # 新增: 读取label_smoothing参数
+    label_smoothing = config.get("label_smoothing", 
+        config_manager.get("label_smoothing", 0.1, "train"))
     
     # 显示训练设备信息
     logging.info(f"使用设备: {device}")
@@ -199,66 +208,79 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
         logging.info(f"显存总量: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f}GB")
         logging.info(f"当前分配: {torch.cuda.memory_allocated() / 1024**3:.2f}GB")
     
-    # 设置优化器
+    # 将模型移动到设备
+    model.to(device)
+    
+    # 设置损失函数，添加label_smoothing参数
+    criterion = torch.nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    logging.info(f"使用Label Smoothing损失函数，系数: {label_smoothing}")
+    
+    # ===== 阶段1: 仅训练头部 =====
+    logging.info(f"--- [阶段 1/2] 开始训练分类器头部 ({warmup_epochs} epochs) ---")
+    
+    # 冻结骨干网络
+    if hasattr(model, 'backbone'):
+        logging.info("冻结骨干网络参数...")
+        for param in model.backbone.parameters():
+            param.requires_grad = False
+    else:
+        logging.warning("模型未找到 'backbone' 属性，将训练所有可训练层。")
+    
+    # 获取优化器设置
     optimizer_name = config.get("optimizer", "AdamW")
     weight_decay = config.get("weight_decay", 0.01)
     
-    # 使用更先进的优化器
-    if optimizer_name == "AdamW":
-        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    elif optimizer_name == "SGD":
-        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
+    # 收集需要训练的参数
+    if hasattr(model, 'classifier_head'):
+        trainable_params = list(model.classifier_head.parameters())
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
     
-    # 添加学习率调度器
+    # 创建第一阶段优化器
+    if optimizer_name == "AdamW":
+        optimizer_stage1 = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    elif optimizer_name == "SGD":
+        optimizer_stage1 = torch.optim.SGD(trainable_params, lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
+    else:
+        optimizer_stage1 = torch.optim.Adam(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+    
+    # 创建第一阶段学习率调度器
     scheduler_name = config.get("scheduler", "OneCycleLR")
+    scheduler_stage1 = None
+    
     if scheduler_name == "OneCycleLR":
-        # OneCycleLR是性能最好的调度器之一
         steps_per_epoch = len(train_loader)
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, 
-            max_lr=learning_rate * 10,  # 最大学习率为基础学习率的10倍
+        scheduler_stage1 = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer_stage1, 
+            max_lr=learning_rate * 10,
             steps_per_epoch=steps_per_epoch,
-            epochs=epochs,
-            pct_start=0.3,  # 30%的时间用于预热
-            div_factor=25.0,  # 初始学习率 = max_lr/25
-            final_div_factor=1e4  # 最终学习率 = max_lr/10000
+            epochs=warmup_epochs,
+            pct_start=0.3,
+            div_factor=25.0,
+            final_div_factor=1e4
         )
     elif scheduler_name == "CosineAnnealingLR":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, 
-            T_max=epochs,
+        scheduler_stage1 = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer_stage1, 
+            T_max=warmup_epochs,
             eta_min=learning_rate / 100
         )
-    elif scheduler_name == "ReduceLROnPlateau":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode='min',
-            factor=0.5,
-            patience=5
-        )
-    else:
-        scheduler = None
     
-    # 设置损失函数
-    criterion = torch.nn.CrossEntropyLoss()
-    
-    # 创建训练器配置
-    trainer_config = {
+    # 创建第一阶段训练器配置
+    trainer_config_stage1 = {
         'device': device,
         'task_type': 'classification',
-        'epochs': epochs,
+        'epochs': warmup_epochs,
         'log_interval': config.get("log_interval", 
             config_manager.get("log_interval", 10, "train")),
         'scheduler': {
             'type': scheduler_name,
-            'instance': scheduler
+            'instance': scheduler_stage1
         },
-        'mixed_precision': config.get("mixed_precision", True),  # 启用混合精度训练
+        'mixed_precision': config.get("mixed_precision", True),
         'early_stopping': {
             'patience': config.get("patience", 
-                config_manager.get("patience", 15, "train")),  # 增加耐心值
+                config_manager.get("patience", 15, "train")),
             'min_delta': config.get("min_delta", 
                 config_manager.get("min_delta", 0.001, "train")),
             'monitor': config.get("monitor", 
@@ -266,37 +288,153 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
         },
         'tensorboard': {
             'enabled': True,
-            'log_dir': str(experiment_dir / 'tensorboard')
+            'log_dir': str(experiment_dir / 'tensorboard' / 'stage1')
         },
-        'grad_clip': 1.0,  # 添加梯度裁剪
-        'checkpoint_interval': 5  # 每5个epoch保存一次检查点
+        'grad_clip': 1.0,
+        'checkpoint_interval': 5
     }
     
-    # 创建训练器
-    trainer = Trainer(
+    # 创建第一阶段训练器
+    trainer_stage1 = Trainer(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
         criterion=criterion,
-        optimizer=optimizer,
-        config=trainer_config,
+        optimizer=optimizer_stage1,
+        config=trainer_config_stage1,
         device=device,
         task_type='classification',
-        class_names=None  # 可以从数据集获取类名
+        class_names=None
     )
     
     # 保存检查点的路径
-    checkpoints_dir = experiment_dir / "checkpoints"
+    checkpoints_dir_stage1 = experiment_dir / "checkpoints" / "stage1"
+    checkpoints_dir_stage1.mkdir(parents=True, exist_ok=True)
     
-    # 开始训练
-    logging.info(f"开始训练, 设备={device}, 轮数={epochs}")
-    result = trainer.train(epochs=epochs, save_dir=str(checkpoints_dir))
+    # 开始第一阶段训练
+    logging.info(f"开始第一阶段训练, 设备={device}, 轮数={warmup_epochs}")
+    stage1_results = trainer_stage1.train(epochs=warmup_epochs, save_dir=str(checkpoints_dir_stage1))
+    
+    # ===== 阶段2: 微调整个模型 =====
+    logging.info(f"\n--- [阶段 2/2] 开始微调整个模型 ({epochs-warmup_epochs} epochs) ---")
+    
+    # 解冻骨干网络
+    if hasattr(model, 'backbone'):
+        logging.info("解冻骨干网络参数...")
+        for param in model.backbone.parameters():
+            param.requires_grad = True
+    
+    # 构建参数组，使用差分学习率
+    backbone_params = []
+    head_params = []
+    
+    # 区分骨干网络和头部参数
+    if hasattr(model, 'backbone') and hasattr(model, 'classifier_head'):
+        backbone_params = list(model.backbone.parameters())
+        head_params = list(model.classifier_head.parameters())
+        logging.info(f"骨干网络参数: {len(backbone_params)}, 头部参数: {len(head_params)}")
+    else:
+        # 如果结构不明确，所有参数使用同一学习率
+        logging.warning("无法区分骨干网络和头部参数，将使用相同的学习率")
+        head_params = list(model.parameters())
+    
+    # 构建差分学习率的参数组
+    param_groups = []
+    if backbone_params:
+        param_groups.append({'params': backbone_params, 'lr': backbone_lr})  # 骨干网络低学习率
+    if head_params:
+        param_groups.append({'params': head_params, 'lr': learning_rate})     # 头部高学习率
+    
+    # 创建第二阶段优化器
+    if optimizer_name == "AdamW":
+        optimizer_stage2 = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
+    elif optimizer_name == "SGD":
+        optimizer_stage2 = torch.optim.SGD(param_groups, momentum=0.9, weight_decay=weight_decay)
+    else:
+        optimizer_stage2 = torch.optim.Adam(param_groups, weight_decay=weight_decay)
+    
+    # 创建第二阶段学习率调度器
+    remaining_epochs = epochs - warmup_epochs
+    scheduler_stage2 = None
+    
+    if scheduler_name == "OneCycleLR":
+        steps_per_epoch = len(train_loader)
+        scheduler_stage2 = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer_stage2, 
+            max_lr=[backbone_lr * 10, learning_rate * 10],  # 为每个参数组指定max_lr
+            steps_per_epoch=steps_per_epoch,
+            epochs=remaining_epochs,
+            pct_start=0.3,
+            div_factor=25.0,
+            final_div_factor=1e4
+        )
+    elif scheduler_name == "CosineAnnealingLR":
+        scheduler_stage2 = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer_stage2, 
+            T_max=remaining_epochs,
+            eta_min=backbone_lr / 100
+        )
+    
+    # 创建第二阶段训练器配置
+    trainer_config_stage2 = {
+        'device': device,
+        'task_type': 'classification',
+        'epochs': remaining_epochs,
+        'log_interval': config.get("log_interval", 
+            config_manager.get("log_interval", 10, "train")),
+        'scheduler': {
+            'type': scheduler_name,
+            'instance': scheduler_stage2
+        },
+        'mixed_precision': config.get("mixed_precision", True),
+        'early_stopping': {
+            'patience': config.get("patience", 
+                config_manager.get("patience", 15, "train")),
+            'min_delta': config.get("min_delta", 
+                config_manager.get("min_delta", 0.001, "train")),
+            'monitor': config.get("monitor", 
+                config_manager.get("monitor", "val_loss", "train"))
+        },
+        'tensorboard': {
+            'enabled': True,
+            'log_dir': str(experiment_dir / 'tensorboard' / 'stage2')
+        },
+        'grad_clip': 1.0,
+        'checkpoint_interval': 5
+    }
+    
+    # 创建第二阶段训练器
+    trainer_stage2 = Trainer(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=criterion,
+        optimizer=optimizer_stage2,
+        config=trainer_config_stage2,
+        device=device,
+        task_type='classification',
+        class_names=None
+    )
+    
+    # 保存检查点的路径
+    checkpoints_dir_stage2 = experiment_dir / "checkpoints" / "stage2"
+    checkpoints_dir_stage2.mkdir(parents=True, exist_ok=True)
+    
+    # 开始第二阶段训练
+    logging.info(f"开始第二阶段训练, 设备={device}, 轮数={remaining_epochs}")
+    stage2_results = trainer_stage2.train(epochs=remaining_epochs, save_dir=str(checkpoints_dir_stage2))
     
     # 保存最终模型
     model_path = save_model(model, config, experiment_dir)
     logging.info(f"训练完成, 最终模型已保存: {model_path}")
     
-    return result
+    # 合并两个阶段的结果
+    combined_results = {
+        'stage1': stage1_results,
+        'stage2': stage2_results
+    }
+    
+    return combined_results
 
 # 添加评估和解释功能
 def generate_evaluation_report(model, data_loader, class_names, output_dir):

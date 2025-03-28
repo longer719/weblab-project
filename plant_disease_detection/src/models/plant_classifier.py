@@ -41,7 +41,7 @@ class PlantClassifier(BaseModel):
             self.pretrained = config.get('pretrained', 
                 self.config_manager.get('PRETRAINED', True, 'model'))
             self.dropout_rate = config.get('dropout_rate', 
-                self.config_manager.get('dropout_rate', 0.3, 'model'))
+                self.config_manager.get('dropout_rate', 0.5, 'model'))
             self.is_multilabel = config.get('is_multilabel', 
                 self.config_manager.get('is_multilabel', False, 'model'))
             self.freeze_layers = config.get('freeze_layers', 
