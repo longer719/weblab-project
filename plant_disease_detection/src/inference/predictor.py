@@ -142,17 +142,19 @@ class BasePredictor:
 class ClassificationPredictor(BasePredictor):
     """分类模型预测器"""
     
-    def __init__(self, model: nn.Module, class_names: List[str], device: Optional[torch.device] = None):
+    def __init__(self, model: nn.Module, class_names: Union[List[str], Dict[str, str]], 
+                 device: Optional[torch.device] = None):
         """
         初始化分类预测器
         
         Args:
             model: 分类模型
-            class_names: 类别名称列表
+            class_names: 类别名称列表或字典（ID->名称映射）
             device: 运行设备
         """
         super().__init__(model, device)
         self.class_names = class_names
+        self.is_dict_mapping = isinstance(class_names, dict)
         
     def predict(self, image: Union[str, np.ndarray, Image.Image]) -> Dict[str, Any]:
         """
@@ -175,10 +177,16 @@ class ClassificationPredictor(BasePredictor):
             # 获取最可能的类别
             score, class_idx = torch.max(probabilities, dim=0)
             
+        # 获取类别名称 - 修改这里的逻辑
+        if self.is_dict_mapping:
+            class_name = self.class_names.get(str(class_idx.item()), f"未知类别{class_idx.item()}")
+        else:
+            class_name = self.class_names[class_idx.item()] if class_idx.item() < len(self.class_names) else f"类别{class_idx.item()}"
+        
         # 构建结果字典
         result = {
             'class_id': class_idx.item(),
-            'class_name': self.class_names[class_idx.item()],
+            'class_name': class_name,
             'confidence': score.item(),
             'probabilities': probabilities.cpu().numpy().tolist(),
             'top_classes': self._get_top_predictions(probabilities.cpu().numpy(), k=3)
@@ -204,9 +212,14 @@ class ClassificationPredictor(BasePredictor):
         for probabilities in batch_probabilities:
             score, class_idx = torch.max(probabilities, dim=0)
             
+            if self.is_dict_mapping:
+                class_name = self.class_names.get(str(class_idx.item()), f"未知类别{class_idx.item()}")
+            else:
+                class_name = self.class_names[class_idx.item()] if class_idx.item() < len(self.class_names) else f"类别{class_idx.item()}"
+            
             result = {
                 'class_id': class_idx.item(),
-                'class_name': self.class_names[class_idx.item()],
+                'class_name': class_name,
                 'confidence': score.item(),
                 'probabilities': probabilities.cpu().numpy().tolist(),
                 'top_classes': self._get_top_predictions(probabilities.cpu().numpy(), k=3)
@@ -244,7 +257,7 @@ class ClassificationPredictor(BasePredictor):
 class DetectionPredictor(BasePredictor):
     """检测模型预测器"""
     
-    def __init__(self, model: nn.Module, class_names: List[str], 
+    def __init__(self, model: nn.Module, class_names: Union[List[str], Dict[str, str]], 
                 score_threshold: float = 0.5, device: Optional[torch.device] = None):
         """
         初始化检测预测器
@@ -257,6 +270,7 @@ class DetectionPredictor(BasePredictor):
         """
         super().__init__(model, device)
         self.class_names = class_names
+        self.is_dict_mapping = isinstance(class_names, dict)
         self.score_threshold = self.config_manager.get(
             'DETECTION_SCORE_THRESHOLD', score_threshold, "model")
         
@@ -302,8 +316,13 @@ class DetectionPredictor(BasePredictor):
         # 构建结果
         detections = []
         for box, score, label in zip(boxes, scores, labels):
-            # 获取类别名称
-            class_name = self.class_names[label-1]  # 标签通常从1开始
+            # 标签通常从1开始，而映射从0开始
+            class_id = label - 1
+            
+            if self.is_dict_mapping:
+                class_name = self.class_names.get(str(class_id), f"未知类别{class_id}")
+            else:
+                class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{label}"
             
             # 添加检测结果 - 包含植物类型信息
             detections.append({

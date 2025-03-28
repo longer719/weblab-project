@@ -59,14 +59,6 @@ class MappingService:
         # 加载病害英文名到中文名的映射
         self.disease_mapping = self._load_json_file('models/disease_mappings.json', {})
         
-        # 加载植物类别映射
-        self.plant_classes = self._load_json_file('models/plant_classes.json', 
-                                                self._get_default_plant_classes())
-        
-        # 加载病害类别映射
-        self.disease_classes = self._load_json_file('models/disease_classes.json',
-                                                  self._get_default_disease_classes())
-        
         # 创建反向映射（中文 -> 英文）
         self.reverse_plant_mapping = {v: k for k, v in self.plant_mapping.items()}
         self.reverse_disease_mapping = {v: k for k, v in self.disease_mapping.items()}
@@ -74,7 +66,7 @@ class MappingService:
         # 创建数据集类名映射
         self._create_dataset_mapping()
         
-        self.logger.info(f"已加载 {len(self.plant_classes)} 个植物类别和 {len(self.disease_classes)} 个病害类别")
+        self.logger.info(f"已加载植物英汉映射 {len(self.plant_mapping)} 条和病害英汉映射 {len(self.disease_mapping)} 条")
 
     def _load_json_file(self, file_path, default_value=None):
         """从JSON文件加载数据，如果失败则返回默认值"""
@@ -89,33 +81,6 @@ class MappingService:
             self.logger.error(f"加载文件失败 {file_path}: {e}")
             return default_value
     
-    def _load_plant_classes(self):
-        """加载植物类别映射"""
-        try:
-            plant_classes_path = os.path.join('models', 'plant_classes.json')
-            if os.path.exists(plant_classes_path):
-                with open(plant_classes_path, 'r', encoding='utf-8') as f:
-                    self.plant_classes = json.load(f)
-            else:
-                self.logger.warning("植物类别映射文件不存在，将使用默认值")
-                self.plant_classes = self._get_default_plant_classes()
-        except Exception as e:
-            self.logger.error(f"加载植物类别映射失败: {e}")
-            self.plant_classes = self._get_default_plant_classes()
-    
-    def _load_disease_classes(self):
-        """加载病害类别映射"""
-        try:
-            disease_classes_path = os.path.join('models', 'disease_classes.json')
-            if os.path.exists(disease_classes_path):
-                with open(disease_classes_path, 'r', encoding='utf-8') as f:
-                    self.disease_classes = json.load(f)
-            else:
-                self.logger.warning("病害类别映射文件不存在，将使用默认值")
-                self.disease_classes = self._get_default_disease_classes()
-        except Exception as e:
-            self.logger.error(f"加载病害类别映射失败: {e}")
-            self.disease_classes = self._get_default_disease_classes()
     
     def _create_dataset_mapping(self):
         """创建数据集类名到植物和状态的映射"""
@@ -167,28 +132,20 @@ class MappingService:
         }
     
     def get_plant_name(self, class_id: str) -> str:
-        """
-        获取植物类别名称
-        
-        Args:
-            class_id: 类别ID
-            
-        Returns:
-            植物类别名称
-        """
-        return self.plant_classes.get(str(class_id), f"未知植物_{class_id}")
-    
+        """获取植物类别名称（已弃用，保留兼容性）"""
+        self.logger.warning("get_plant_name 方法已被弃用，请使用统一的类别映射")
+        from flask import current_app
+        if hasattr(current_app, 'plant_class_names'):
+            return current_app.plant_class_names.get(str(class_id), f"未知植物_{class_id}")
+        return f"未知植物_{class_id}"
+
     def get_disease_name(self, class_id: str) -> str:
-        """
-        获取病害类别名称
-        
-        Args:
-            class_id: 类别ID
-            
-        Returns:
-            病害类别名称
-        """
-        return self.disease_classes.get(str(class_id), f"未知病害_{class_id}")
+        """获取病害类别名称（已弃用，保留兼容性）"""
+        self.logger.warning("get_disease_name 方法已被弃用，请使用统一的类别映射")
+        from flask import current_app
+        if hasattr(current_app, 'disease_class_names'):
+            return current_app.disease_class_names.get(str(class_id), f"未知病害_{class_id}")
+        return f"未知病害_{class_id}"
     
     def map_dataset_class_to_db(self, class_name: str) -> Tuple[str, str]:
         """

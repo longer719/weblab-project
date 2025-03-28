@@ -409,6 +409,66 @@ def process_plantvillage_dataset(filter_classes=None):
     # 保存类别映射
     with open(processed_data_dir / "class_mapping.json", 'w') as f:
         json.dump(class_mapping, f, indent=2)
+
+    # 创建中文版本的类别映射
+    chinese_class_mapping = {}
+    plant_mappings = {
+        'Apple': '苹果',
+        'Blueberry': '蓝莓',
+        'Cherry': '樱桃',
+        'Corn': '玉米',
+        'Grape': '葡萄',
+        'Orange': '橙子',
+        'Peach': '桃子',
+        'Pepper,_bell': '甜椒',
+        'Potato': '土豆',
+        'Raspberry': '树莓',
+        'Soybean': '大豆',
+        'Squash': '西葫芦',
+        'Strawberry': '草莓',
+        'Tomato': '番茄'
+    }
+    disease_mappings = {
+        'healthy': '健康',
+        'Apple_scab': '黑星病',
+        'Black_rot': '黑腐病',
+        'Cedar_apple_rust': '雪松苹果锈病',
+        'Powdery_mildew': '白粉病',
+        'Cercospora_leaf_spot Gray_leaf_spot': '灰斑病',
+        'Common_rust': '普通锈病',
+        'Northern_Leaf_Blight': '北方叶枯病',
+        'Esca_(Black_Measles)': '黑麻疹病',
+        'Leaf_blight_(Isariopsis_Leaf_Spot)': '叶枯病',
+        'Haunglongbing_(Citrus_greening)': '黄龙病',
+        'Bacterial_spot': '细菌性斑点病',
+        'Early_blight': '早疫病',
+        'Late_blight': '晚疫病',
+        'Leaf_Mold': '叶霉病',
+        'Septoria_leaf_spot': '斑枯病',
+        'Spider_mites Two-spotted_spider_mite': '二斑叶螨',
+        'Target_Spot': '靶斑病',
+        'Tomato_mosaic_virus': '花叶病毒病',
+        'Tomato_Yellow_Leaf_Curl_Virus': '黄化曲叶病毒病',
+        'Leaf_scorch': '叶焦病'
+    }
+
+    # 为每个英文类名创建对应的中文名
+    for class_name, class_idx in class_mapping.items():
+        plant_disease = class_name.split('___')
+        plant_en = plant_disease[0]
+        plant_zh = plant_mappings.get(plant_en, plant_en)
+        
+        if len(plant_disease) > 1:
+            disease_en = plant_disease[1]
+            disease_zh = disease_mappings.get(disease_en, disease_en)
+            chinese_class_mapping[str(class_idx)] = f"{plant_zh}-{disease_zh}"
+        else:
+            chinese_class_mapping[str(class_idx)] = plant_zh
+
+    # 保存中文类别映射
+    with open(processed_data_dir / "class_mapping_zh.json", 'w', encoding='utf-8') as f:
+        json.dump(chinese_class_mapping, f, ensure_ascii=False, indent=4)
+    print(f"已保存中文类别映射文件到 {processed_data_dir / 'class_mapping_zh.json'}")
     
     # 划分并保存数据集
     train_data, val_data, test_data = split_dataset(all_data)

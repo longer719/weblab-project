@@ -337,7 +337,7 @@ def create_predictor():
             
             # 使用检测模型进行预测
             if self.detector:
-                class_names = getattr(current_app, 'disease_class_names', [f"病害{i}" for i in range(5)])
+                class_names = getattr(current_app, 'disease_class_names', {})
                 predictor = DetectionPredictor(self.detector, class_names)
                 return predictor.predict(image)
             else:
@@ -419,41 +419,26 @@ def main():
         app.config_manager = config_manager
         app.classifier = classifier
         app.detector = detector
-        
-        # 添加类别名称列表
-        # 尝试从配置或模型中加载实际的类名
-        class_names_path = normalize_path(os.path.join('models', 'plant_classes.json'))
-        disease_names_path = normalize_path(os.path.join('models', 'disease_classes.json'))
-        plant_mappings_path = normalize_path(os.path.join('models', 'plant_mappings.json'))
-        disease_mappings_path = normalize_path(os.path.join('models', 'disease_mappings.json'))
 
-        try:
-            # 修改这里，确保正确加载每个文件
-            if os.path.exists(class_names_path):
-                with open(class_names_path, 'r', encoding='utf-8') as f:
-                    app.plant_class_names = json.load(f)
-                    logger.info(f"从{class_names_path}加载了{len(app.plant_class_names)}个植物类别")
-                    
-            if os.path.exists(disease_names_path):
-                with open(disease_names_path, 'r', encoding='utf-8') as f:
-                    app.disease_class_names = json.load(f)
-                    logger.info(f"从{disease_names_path}加载了{len(app.disease_class_names)}个病害类别")
-                    
-            if os.path.exists(plant_mappings_path):
-                with open(plant_mappings_path, 'r', encoding='utf-8') as f:
-                    app.plant_mappings = json.load(f)
-                    logger.info(f"加载了{len(app.plant_mappings)}个植物名称映射")
-                    
-            if os.path.exists(disease_mappings_path):
-                with open(disease_mappings_path, 'r', encoding='utf-8') as f:
-                    app.disease_mappings = json.load(f)
-                    logger.info(f"加载了{len(app.disease_mappings)}个病害名称映射")
-        except Exception as e:
-            logger.error(f"加载映射文件时出错: {e}")
-            app.plant_class_names = {}
-            app.disease_class_names = {}
-            app.plant_mappings = {}
-            app.disease_mappings = {}
+        
+        # 加载统一的类别映射文件
+        class_map_path = normalize_path(os.path.join('models', 'plant_classes.json'))
+        class_id_to_name_map = {} # 默认空字典
+
+        if os.path.exists(class_map_path):
+            try:
+                with open(class_map_path, 'r', encoding='utf-8') as f:
+                    class_id_to_name_map = json.load(f)
+                logger.info(f"成功加载统一的38类ID->名称映射: {class_map_path}")
+            except Exception as e:
+                logger.error(f"加载 {class_map_path} 失败: {str(e)}")
+                class_id_to_name_map = {}
+        else:
+            logger.warning(f"关键映射文件丢失: {class_map_path}! 将使用默认映射。")
+
+        # 将同一映射同时设置为植物类别和病害类别映射
+        app.plant_class_names = class_id_to_name_map
+        app.disease_class_names = class_id_to_name_map  # 使用同一映射
         
         # 获取服务配置
         host = config_manager.get('API_HOST', '0.0.0.0', "api")

@@ -135,7 +135,7 @@ def deploy_model(experiment_path, target_dir, model_name, config_only=False):
 def update_class_mappings(target_dir, mapping_type, experiment_path):
     """更新类别映射文件"""
     # 查找实验目录中的类别映射文件
-    search_pattern = "*_classes.json" if mapping_type == "plant" else "*_disease_classes.json"
+    search_pattern = "*_classes.json" 
     mapping_files = []
     for root, dirs, files in os.walk(experiment_path):
         for file in files:
@@ -143,14 +143,13 @@ def update_class_mappings(target_dir, mapping_type, experiment_path):
                 mapping_files.append(os.path.join(root, file))
     
     # 如果找到映射文件，复制到目标目录
-    if (mapping_files):
+    if mapping_files:
         latest_mapping = max(mapping_files, key=os.path.getmtime)
-        target_file = os.path.join(target_dir, 
-                                  "plant_classes.json" if mapping_type == "plant" else "disease_classes.json")
-        logger.info(f"更新{mapping_type}类别映射: {latest_mapping} -> {target_file}")
+        target_file = os.path.join(target_dir, "plant_classes.json")
+        logger.info(f"更新统一类别映射: {latest_mapping} -> {target_file}")
         shutil.copy2(latest_mapping, target_file)
     else:
-        logger.warning(f"在实验目录中未找到{mapping_type}类别映射文件")
+        logger.warning(f"在实验目录中未找到类别映射文件")
 
 def update_version_info(target_dir, model_type):
     """
