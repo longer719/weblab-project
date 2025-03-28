@@ -251,7 +251,7 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     warmup_epochs = config_manager.get_dict_compatible(train_config, "warmup_epochs", 5, "train")
     head_lr = config_manager.get_dict_compatible(train_config, "lr", 0.001, "train")
     backbone_lr = config_manager.get_dict_compatible(train_config, "backbone_lr", 0.00001, "train")  # 骨干网络学习率默认很小
-    weight_decay = config_manager.get_dict_compatible(train_config, "weight_decay", 0.0001, "train")
+    weight_decay = config_manager.get_dict_compatible(train_config, "weight_decay", 0.0005, "train")
     optimizer_name = config_manager.get_dict_compatible(train_config, "optimizer", "AdamW", "train")
     
     # ===== 阶段1: 仅训练检测头部 =====
@@ -289,13 +289,16 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     logging.info(f"检测头部参数数量: {sum(p.numel() for p in head_params)}")
     
     # 创建第一阶段优化器
-    if optimizer_name == "AdamW":
+    if optimizer_name.lower() == "adamw":  # 使用.lower()增加鲁棒性
         optimizer_stage1 = torch.optim.AdamW(head_params, lr=head_lr, weight_decay=weight_decay)
-    elif optimizer_name == "SGD":
+        logging.info(f"阶段1使用AdamW优化器，lr={head_lr}, weight_decay={weight_decay}")
+    elif optimizer_name.lower() == "sgd":
         momentum = config_manager.get_dict_compatible(train_config, "momentum", 0.9, "train")
         optimizer_stage1 = torch.optim.SGD(head_params, lr=head_lr, momentum=momentum, weight_decay=weight_decay)
+        logging.info(f"阶段1使用SGD优化器，lr={head_lr}, weight_decay={weight_decay}")
     else:
-        raise ValueError(f"不支持的优化器: {optimizer_name}")
+        logging.warning(f"不支持的优化器: {optimizer_name}，回退到使用AdamW")
+        optimizer_stage1 = torch.optim.AdamW(head_params, lr=head_lr, weight_decay=weight_decay)
     
     # 创建第一阶段学习率调度器
     scheduler_name = config_manager.get_dict_compatible(train_config, "scheduler", "CosineAnnealingLR", "train")
@@ -381,13 +384,16 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
         param_groups.append({'params': head_params, 'lr': head_lr})  # 头部高学习率
     
     # 创建第二阶段优化器
-    if optimizer_name == "AdamW":
+    if optimizer_name.lower() == "adamw":
         optimizer_stage2 = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
-    elif optimizer_name == "SGD":
+        logging.info(f"阶段2使用AdamW优化器，差分学习率，weight_decay={weight_decay}")
+    elif optimizer_name.lower() == "sgd":
         momentum = config_manager.get_dict_compatible(train_config, "momentum", 0.9, "train")
         optimizer_stage2 = torch.optim.SGD(param_groups, momentum=momentum, weight_decay=weight_decay)
+        logging.info(f"阶段2使用SGD优化器，差分学习率，weight_decay={weight_decay}")
     else:
-        raise ValueError(f"不支持的优化器: {optimizer_name}")
+        logging.warning(f"不支持的优化器: {optimizer_name}，回退到使用AdamW")
+        optimizer_stage2 = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
     
     # 创建第二阶段学习率调度器
     remaining_epochs = total_epochs - warmup_epochs
@@ -396,13 +402,35 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
         'args': {},
         'warmup_epochs': 0  # 第二阶段不需要预热
     }
-    
+
+    # 获取调度器参数子字典
+    scheduler_params = {}
+    if 'scheduler_params' in train_config:
+        scheduler_params = train_config['scheduler_params']
+    else:
+        # 尝试从ConfigManager获取
+        scheduler_params = config_manager.get_dict_compatible(train_config, "scheduler_params", {}, "train")
+
     if scheduler_name == 'CosineAnnealingLR':
-        scheduler_config_stage2['args'] = {'T_max': remaining_epochs}
+        # 设置T_max参数
+        args = {'T_max': remaining_epochs}
+        
+        # 如果配置中有eta_min参数，则添加到args中
+        if 'eta_min' in scheduler_params:
+            args['eta_min'] = scheduler_params['eta_min']
+            logging.info(f"阶段2使用CosineAnnealingLR调度器，T_max={remaining_epochs}，eta_min={scheduler_params['eta_min']}")
+        else:
+            # 使用默认值
+            args['eta_min'] = backbone_lr / 100
+            logging.info(f"阶段2使用CosineAnnealingLR调度器，T_max={remaining_epochs}，eta_min={backbone_lr/100} (默认值)")
+        
+        scheduler_config_stage2['args'] = args
     elif scheduler_name == 'MultiStepLR':
         scheduler_config_stage2['args'] = {'milestones': [remaining_epochs // 3, remaining_epochs * 2 // 3], 'gamma': 0.1}
+        logging.info(f"阶段2使用MultiStepLR调度器，milestones={[remaining_epochs // 3, remaining_epochs * 2 // 3]}，gamma=0.1")
     elif scheduler_name == 'ReduceLROnPlateau':
         scheduler_config_stage2['args'] = {'mode': 'min', 'factor': 0.5, 'patience': 5}
+        logging.info(f"阶段2使用ReduceLROnPlateau调度器，mode=min，factor=0.5，patience=5")
     
     # 创建第二阶段训练器配置
     trainer_config_stage2 = {

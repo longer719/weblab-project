@@ -227,8 +227,10 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
         logging.warning("模型未找到 'backbone' 属性，将训练所有可训练层。")
     
     # 获取优化器设置
-    optimizer_name = config.get("optimizer", "AdamW")
-    weight_decay = config.get("weight_decay", 0.01)
+    optimizer_name = config.get("optimizer", 
+        config_manager.get("optimizer", "AdamW", "train"))
+    weight_decay = config.get("weight_decay", 
+        config_manager.get("weight_decay", 0.01, "train"))
     
     # 收集需要训练的参数
     if hasattr(model, 'classifier_head'):
@@ -237,12 +239,15 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
         trainable_params = [p for p in model.parameters() if p.requires_grad]
     
     # 创建第一阶段优化器
-    if optimizer_name == "AdamW":
+    if optimizer_name.lower() == "adamw":  # 使用.lower()增加鲁棒性
         optimizer_stage1 = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
-    elif optimizer_name == "SGD":
+        logging.info(f"阶段1使用AdamW优化器，lr={learning_rate}, weight_decay={weight_decay}")
+    elif optimizer_name.lower() == "sgd":
         optimizer_stage1 = torch.optim.SGD(trainable_params, lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
+        logging.info(f"阶段1使用SGD优化器，lr={learning_rate}, weight_decay={weight_decay}")
     else:
-        optimizer_stage1 = torch.optim.Adam(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+        optimizer_stage1 = torch.optim.AdamW(trainable_params, lr=learning_rate, weight_decay=weight_decay)
+        logging.warning(f"未知的优化器类型: {optimizer_name}，使用默认AdamW")
     
     # 创建第一阶段学习率调度器
     scheduler_name = config.get("scheduler", "OneCycleLR")
@@ -346,17 +351,25 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
         param_groups.append({'params': head_params, 'lr': learning_rate})     # 头部高学习率
     
     # 创建第二阶段优化器
-    if optimizer_name == "AdamW":
+    if optimizer_name.lower() == "adamw":
         optimizer_stage2 = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
-    elif optimizer_name == "SGD":
+        logging.info(f"阶段2使用AdamW优化器，差分学习率，weight_decay={weight_decay}")
+    elif optimizer_name.lower() == "sgd":
         optimizer_stage2 = torch.optim.SGD(param_groups, momentum=0.9, weight_decay=weight_decay)
+        logging.info(f"阶段2使用SGD优化器，差分学习率，weight_decay={weight_decay}")
     else:
-        optimizer_stage2 = torch.optim.Adam(param_groups, weight_decay=weight_decay)
+        optimizer_stage2 = torch.optim.AdamW(param_groups, weight_decay=weight_decay)
+        logging.warning(f"未知的优化器类型: {optimizer_name}，使用默认AdamW")
     
     # 创建第二阶段学习率调度器
     remaining_epochs = epochs - warmup_epochs
     scheduler_stage2 = None
     
+    # 获取调度器参数子字典，增加对scheduler_params的支持
+    scheduler_params = config.get("scheduler_params", {})
+    if not scheduler_params:  # 如果直接指定没有找到，尝试在train子字典中查找
+        scheduler_params = config.get("train", {}).get("scheduler_params", {})
+
     if scheduler_name == "OneCycleLR":
         steps_per_epoch = len(train_loader)
         scheduler_stage2 = torch.optim.lr_scheduler.OneCycleLR(
@@ -368,12 +381,17 @@ def train_model(model, train_loader, val_loader, config, experiment_dir):
             div_factor=25.0,
             final_div_factor=1e4
         )
+        logging.info(f"阶段2使用OneCycleLR调度器，max_lr=[{backbone_lr*10}, {learning_rate*10}]")
     elif scheduler_name == "CosineAnnealingLR":
+        # 从配置中获取eta_min参数，如果未指定则使用默认值
+        eta_min = scheduler_params.get("eta_min", backbone_lr / 100)
+        
         scheduler_stage2 = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer_stage2, 
             T_max=remaining_epochs,
-            eta_min=backbone_lr / 100
+            eta_min=eta_min
         )
+        logging.info(f"阶段2使用CosineAnnealingLR调度器，T_max={remaining_epochs}，eta_min={eta_min}")
     
     # 创建第二阶段训练器配置
     trainer_config_stage2 = {

@@ -25,8 +25,10 @@ train:
   epochs: 100           # 充分训练
   lr: 0.0001           # 稍小的学习率以稳定训练
   optimizer: "AdamW"
-  scheduler: "OneCycleLR"  # 高效的学习率调度
-  weight_decay: 0.01    # 正则化
+  scheduler: "CosineAnnealingLR"  # 由OneCycleLR改为CosineAnnealingLR余弦退火调度器
+  scheduler_params:              # 新增调度器参数子字典
+    eta_min: 0.0000001          # 设置最小学习率(约为lr的1/1000)
+  weight_decay: 0.01    # 分类器使用较大的权重衰减值
   mixed_precision: true # 使用混合精度训练加速
   seed: 42
   warmup_epochs: 5      # 新增: 第一阶段只训练头部的轮数

@@ -304,6 +304,7 @@ class Trainer:
             elif scheduler_type == 'CosineAnnealingLR':
                 self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                     optimizer, **scheduler_args)
+                logging.info(f"使用CosineAnnealingLR学习率调度器，参数: {scheduler_args}")
             elif scheduler_type == 'MultiStepLR':
                 self.scheduler = torch.optim.lr_scheduler.MultiStepLR(
                     optimizer, **scheduler_args)
@@ -385,9 +386,13 @@ class Trainer:
                     # ReduceLROnPlateau需要指标值
                     monitor_value = val_metrics.get(self.early_stopping_monitor, 0) if self.early_stopping_monitor else val_metrics.get('loss', 0)
                     self.scheduler.step(monitor_value)
-                else:
-                    # 其他调度器直接调用step()
+                # 新增：排除OneCycleLR，因为它应该在每个batch后调用step()
+                elif not isinstance(self.scheduler, torch.optim.lr_scheduler.OneCycleLR):
+                    # 其他调度器（如CosineAnnealingLR, StepLR）在每个epoch结束时调用step()
                     self.scheduler.step()
+                    # 记录当前学习率
+                    current_lrs = self._get_lr()
+                    logging.info(f"Epoch {epoch+1}学习率更新为: {[f'{lr:.6f}' for lr in current_lrs]}")
             
             # 保存检查点
             self.save_checkpoint(epoch, save_dir)
@@ -434,6 +439,10 @@ class Trainer:
             pbar.set_postfix(pbar_postfix)
             
             self.global_step += 1
+
+            # 如果使用OneCycleLR，需要在每个批次后调用step()
+            if self.scheduler is not None and isinstance(self.scheduler, torch.optim.lr_scheduler.OneCycleLR):
+                self.scheduler.step()
         
         # 计算平均指标
         avg_metrics = {k: v / metrics['samples'] for k, v in metrics.items() if k != 'samples'}
@@ -908,7 +917,8 @@ class Trainer:
         else:
             # 否则记录每个参数组的学习率
             for i, lr in enumerate(lrs):
-                self.tb_logger.log_scalar(f'lr/group{i}', lr, step)
+                name = f'backbone' if i == 0 else f'head'  # 假设第一组是backbone，第二组是head
+                self.tb_logger.log_scalar(f'lr/{name}', lr, step)
     
     def _log_images(self, images: torch.Tensor, targets: torch.Tensor, 
                    predictions: torch.Tensor, step: int):

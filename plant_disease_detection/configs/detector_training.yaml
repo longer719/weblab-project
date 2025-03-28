@@ -35,8 +35,10 @@ train:
   epochs: 50            # 目标检测通常收敛较快
   lr: 0.0005            # 轻微调整学习率
   optimizer: "AdamW"
-  scheduler: "CosineAnnealingLR"
-  weight_decay: 0.0005
+  scheduler: "CosineAnnealingLR"  # 保持现有的设置
+  scheduler_params:              # <-- 新增调度器参数子字典
+    eta_min: 0.0000005          # <-- 设置最小学习率(约为lr的1/1000)
+  weight_decay: 0.0005  # 检测任务使用较小的权重衰减值
   mixed_precision: true  # 使用混合精度加速训练
   warmup_epochs: 3       # 新增: 第一阶段只训练头部的轮数
   backbone_lr: 0.00005   # 新增: 第二阶段backbone的学习率(显著小于头部)
