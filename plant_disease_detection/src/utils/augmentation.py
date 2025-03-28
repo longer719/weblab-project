@@ -1,4 +1,6 @@
 # src/utils/augmentation.py
+# 用于数据增强的模块
+# 该模块提供了多种数据增强方法，包括随机翻转、旋转、颜色抖动等
 
 import cv2
 import numpy as np
@@ -6,6 +8,7 @@ import random
 import torch
 from typing import Dict, List, Union, Optional, Tuple
 from torchvision import transforms
+import torchvision.transforms.functional as TF  # 添加这一行导入
 from PIL import Image, ImageOps, ImageEnhance
 
 # 添加新的导入
@@ -54,12 +57,35 @@ class AugmentationPipeline:
         hflip_prob = get_config_value(self.config, 'hflip_prob', 0.5)
         vflip_prob = get_config_value(self.config, 'vflip_prob', 0.0)
         rotation_degrees = get_config_value(self.config, 'rotation_degrees', 15)
-        brightness = get_config_value(self.config, 'brightness', 0.2)
-        contrast = get_config_value(self.config, 'contrast', 0.2)
-        saturation = get_config_value(self.config, 'saturation', 0.2)
+        brightness = get_config_value(self.config, 'brightness', 0.35)  # 默认值从0.2改为0.35
+        contrast = get_config_value(self.config, 'contrast', 0.3)       # 默认值从0.2改为0.3
+        saturation = get_config_value(self.config, 'saturation', 0.3)   # 默认值从0.2改为0.3
         hue = get_config_value(self.config, 'hue', 0.1)
+        # 新增三个配置参数
+        autocontrast_prob = get_config_value(self.config, 'autocontrast_prob', 0.2)
+        equalize_prob = get_config_value(self.config, 'equalize_prob', 0.1) 
+        gamma_prob = get_config_value(self.config, 'gamma_prob', 0.3)
+        gamma_range = get_config_value(self.config, 'gamma_range', (0.7, 1.3))
         crop_scale = get_config_value(self.config, 'crop_scale', (0.8, 1.0))
         crop_ratio = get_config_value(self.config, 'crop_ratio', (0.75, 1.33))
+
+        # --- 新增几何变换和噪声参数 ---
+        affine_prob = get_config_value(self.config, 'affine_prob', 0.5)
+        affine_degrees = get_config_value(self.config, 'affine_degrees', 15)
+        affine_translate = get_config_value(self.config, 'affine_translate', (0.08, 0.08))
+        affine_scale = get_config_value(self.config, 'affine_scale', (0.9, 1.1))
+        affine_shear = get_config_value(self.config, 'affine_shear', 10)
+
+        blur_prob = get_config_value(self.config, 'blur_prob', 0.3)
+        blur_kernel_size = get_config_value(self.config, 'blur_kernel_size', 5)
+        blur_sigma = get_config_value(self.config, 'blur_sigma', (0.1, 2.0))
+
+        noise_prob = get_config_value(self.config, 'noise_prob', 0.2)
+        noise_std = get_config_value(self.config, 'noise_std', (0.01, 0.05))
+
+        erasing_prob = get_config_value(self.config, 'erasing_prob', 0.2)
+        erasing_scale = get_config_value(self.config, 'erasing_scale', (0.02, 0.15))
+        erasing_ratio = get_config_value(self.config, 'erasing_ratio', (0.3, 3.3))
         
         # 是否使用高级增强
         use_advanced = get_config_value(self.config, 'use_advanced', True)
@@ -83,12 +109,33 @@ class AugmentationPipeline:
                 scale=crop_scale,
                 ratio=crop_ratio
             ),
+            # 新增：随机仿射变换
+            transforms.RandomAffine(
+                degrees=affine_degrees, 
+                translate=affine_translate,
+                scale=affine_scale,
+                shear=affine_shear,
+                fill=0
+            ) if random.random() < affine_prob else transforms.Lambda(lambda x: x),
+            # 颜色调整（保持现有）
             transforms.ColorJitter(
                 brightness=brightness,
                 contrast=contrast,
                 saturation=saturation,
                 hue=hue
-            )
+            ),
+            # 保持现有的自动对比度、均衡化和Gamma调整
+            transforms.RandomAutocontrast(p=autocontrast_prob),
+            transforms.RandomEqualize(p=equalize_prob),
+            transforms.Lambda(lambda img: TF.adjust_gamma(
+                img, 
+                random.uniform(gamma_range[0], gamma_range[1])
+            ) if random.random() < gamma_prob else img),
+            # 新增：高斯模糊
+            transforms.GaussianBlur(
+                kernel_size=blur_kernel_size,  
+                sigma=blur_sigma
+            ) if random.random() < blur_prob else transforms.Lambda(lambda x: x),
         ])
         
         # 转换为张量并标准化
@@ -97,14 +144,25 @@ class AugmentationPipeline:
         
         transform_list.extend([
             transforms.ToTensor(),
+            # 新增：高斯噪声
+            transforms.Lambda(lambda x: torch.clamp(
+                x + torch.randn_like(x) * random.uniform(noise_std[0], noise_std[1]), 
+                0, 1
+            ) if random.random() < noise_prob else x),
             transforms.Normalize(mean=mean, std=std)
         ])
         
         # 高级增强方法
         if use_advanced:
+            # 新增：随机擦除（位置从原来的erasing_prob移到这里，参数更丰富）
             if erasing_prob > 0:
                 transform_list.append(
-                    transforms.RandomErasing(p=erasing_prob)
+                    transforms.RandomErasing(
+                        p=erasing_prob,
+                        scale=erasing_scale,
+                        ratio=erasing_ratio,
+                        value='random'  # 使用随机值填充
+                    )
                 )
         
         return transforms.Compose(transform_list)
@@ -126,9 +184,12 @@ class AugmentationPipeline:
         # 验证集只需要基本的大小调整、转换和标准化
         center_crop = get_config_value(self.config, 'center_crop', True)
         
+        # 计算调整大小的目标尺寸 - 约为原尺寸的1.14倍（如224→256）
+        target_size = int((img_size[0] if isinstance(img_size, tuple) else img_size) * 1.14)
+        
         transform_list = [
             transforms.ToPILImage(),
-            transforms.Resize(img_size[0] if isinstance(img_size, tuple) else img_size)
+            transforms.Resize(target_size)  # 修改这里，使用更大的尺寸
         ]
         
         if center_crop:
@@ -446,18 +507,41 @@ class AugmentationConfig:
         config_manager = ConfigManager()
         
         return {
+            # 保留现有配置
             'hflip_prob': config_manager.get('strong_hflip_prob', 0.5, "data"),
             'vflip_prob': config_manager.get('strong_vflip_prob', 0.3, "data"),
             'rotation_degrees': config_manager.get('strong_rotation_degrees', 30, "data"),
-            'brightness': config_manager.get('strong_brightness', 0.3, "data"),
-            'contrast': config_manager.get('strong_contrast', 0.3, "data"),
-            'saturation': config_manager.get('strong_saturation', 0.3, "data"),
+            'brightness': config_manager.get('strong_brightness', 0.4, "data"),
+            'contrast': config_manager.get('strong_contrast', 0.4, "data"),
+            'saturation': config_manager.get('strong_saturation', 0.4, "data"),
             'hue': config_manager.get('strong_hue', 0.15, "data"),
             'crop_scale': config_manager.get('strong_crop_scale', (0.6, 1.0), "data"),
             'crop_ratio': config_manager.get('strong_crop_ratio', (0.7, 1.43), "data"),
             'use_advanced': config_manager.get('strong_use_advanced', True, "data"),
             'erasing_prob': config_manager.get('strong_erasing_prob', 0.3, "data"),
             'center_crop': config_manager.get('strong_center_crop', False, "data"),
+            'autocontrast_prob': config_manager.get('strong_autocontrast_prob', 0.25, "data"),
+            'equalize_prob': config_manager.get('strong_equalize_prob', 0.15, "data"),
+            'gamma_prob': config_manager.get('strong_gamma_prob', 0.35, "data"),
+            'gamma_range': config_manager.get('strong_gamma_range', (0.6, 1.4), "data"),
+            
+            # 新增强增强配置
+            'affine_prob': config_manager.get('strong_affine_prob', 0.6, "data"),
+            'affine_degrees': config_manager.get('strong_affine_degrees', 20, "data"),
+            'affine_translate': config_manager.get('strong_affine_translate', (0.12, 0.12), "data"),
+            'affine_scale': config_manager.get('strong_affine_scale', (0.8, 1.2), "data"),
+            'affine_shear': config_manager.get('strong_affine_shear', 15, "data"),
+            
+            'blur_prob': config_manager.get('strong_blur_prob', 0.4, "data"),
+            'blur_kernel_size': config_manager.get('strong_blur_kernel_size', 7, "data"),
+            'blur_sigma': config_manager.get('strong_blur_sigma', (0.1, 3.0), "data"),
+            
+            'noise_prob': config_manager.get('strong_noise_prob', 0.3, "data"),
+            'noise_std': config_manager.get('strong_noise_std', (0.02, 0.08), "data"),
+            
+            'erasing_scale': config_manager.get('strong_erasing_scale', (0.02, 0.2), "data"),
+            'erasing_ratio': config_manager.get('strong_erasing_ratio', (0.2, 3.5), "data"),
+            
             'mean': config_manager.get('NORMALIZATION_MEAN', [0.485, 0.456, 0.406], "data"),
             'std': config_manager.get('NORMALIZATION_STD', [0.229, 0.224, 0.225], "data")
         }
