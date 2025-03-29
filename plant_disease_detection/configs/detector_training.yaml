@@ -42,6 +42,9 @@ train:
   mixed_precision: true  # 使用混合精度加速训练
   warmup_epochs: 3       # 新增: 第一阶段只训练头部的轮数
   backbone_lr: 0.00005   # 新增: 第二阶段backbone的学习率(显著小于头部)
+  mixup_alpha: 0.0       # 新增: 不为检测器使用MixUp
+  cutmix_alpha: 1.0      # 新增: 启用CutMix (1.0是标准值)
+  mixcut_prob: 0.5       # 新增: 设置应用CutMix的概率为50%
   grad_accumulation_steps: 2  # 梯度累积，相当于加倍批次大小
   seed: 42
   save_interval: 5

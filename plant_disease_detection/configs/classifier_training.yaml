@@ -34,6 +34,8 @@ train:
   warmup_epochs: 5      # 新增: 第一阶段只训练头部的轮数
   backbone_lr: 0.00001  # 新增: 第二阶段backbone的学习率(显著小于头部)
   label_smoothing: 0.1  # 新增: 标签平滑系数(0.1通常是很好的起点)
+  mixup_alpha: 0.2       # <--- 新增: 设置 MixUp 参数 (0.2是很好的起点值)
+  cutmix_alpha: 0.0      # <--- 新增: 禁用 CutMix (专注于MixUp效果)
   save_interval: 5      # 每5个epoch保存一次
   early_stopping:
     patience: 15        # 增加耐心值

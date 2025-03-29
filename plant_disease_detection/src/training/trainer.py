@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import logging
+import random
 from typing import Dict, List, Optional, Union, Callable, Tuple, Any
 import numpy as np
 import torch
@@ -606,6 +607,31 @@ class Trainer:
         """
         images, labels = self._prepare_batch(batch)
         
+        # 添加 MixUp/CutMix 逻辑
+        apply_mixup = False
+        apply_cutmix = False
+        lam = 1.0  # 默认不混合
+        labels_a, labels_b = labels, labels
+        
+        # 检查配置以确定是否应用 MixUp/CutMix
+        mixup_alpha = self.config.get('mixup_alpha', 0.0)
+        if isinstance(self.config.get('train'), dict):
+            mixup_alpha = self.config.get('train', {}).get('mixup_alpha', mixup_alpha)
+        
+        cutmix_alpha = self.config.get('cutmix_alpha', 0.0)
+        if isinstance(self.config.get('train'), dict):
+            cutmix_alpha = self.config.get('train', {}).get('cutmix_alpha', cutmix_alpha)
+        
+        # 随机决定是否应用 MixUp 或 CutMix
+        if mixup_alpha > 0 and random.random() < 0.5:
+            apply_mixup = True
+            from src.utils.augmentation import AugmentationPipeline
+            images, labels_a, labels_b, lam = AugmentationPipeline.mixup_data(images, labels, mixup_alpha)
+        elif cutmix_alpha > 0:
+            apply_cutmix = True
+            from src.utils.augmentation import AugmentationPipeline
+            images, labels_a, labels_b, lam = AugmentationPipeline.cutmix_data(images, labels, cutmix_alpha)
+
         # 清零梯度
         self.optimizer.zero_grad()
         
@@ -615,7 +641,12 @@ class Trainer:
             device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
             with autocast(device_type=device_type):
                 outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
+                
+                # 根据是否应用混合增强计算损失
+                if apply_mixup or apply_cutmix:
+                    loss = lam * self.criterion(outputs, labels_a) + (1 - lam) * self.criterion(outputs, labels_b)
+                else:
+                    loss = self.criterion(outputs, labels)
                 
             # 反向传播
             self.scaler.scale(loss).backward()
@@ -634,7 +665,12 @@ class Trainer:
         else:
             # 常规训练
             outputs = self.model(images)
-            loss = self.criterion(outputs, labels)
+            
+            # 根据是否应用混合增强计算损失
+            if apply_mixup or apply_cutmix:
+                loss = lam * self.criterion(outputs, labels_a) + (1 - lam) * self.criterion(outputs, labels_b)
+            else:
+                loss = self.criterion(outputs, labels)
             
             # 反向传播
             loss.backward()
@@ -649,10 +685,14 @@ class Trainer:
             # 更新参数
             self.optimizer.step()
         
-        # 计算准确率
-        _, preds = torch.max(outputs, 1)
-        correct = (preds == labels).sum().item()
-        acc = correct / labels.size(0)
+        # 计算准确率（只有当未应用混合增强时才有意义）
+        if not apply_mixup and not apply_cutmix:
+            _, preds = torch.max(outputs, 1)
+            correct = (preds == labels).sum().item()
+            acc = correct / labels.size(0)
+        else:
+            # 当应用混合增强时，准确率计算变得复杂，可以简单地返回0
+            acc = 0.0
         
         return {
             'loss': loss.item(),
@@ -695,6 +735,33 @@ class Trainer:
         try:
             # 直接将batch视为元组解包，因为detection_collate_fn返回的就是元组
             images, targets = batch
+            
+            # 添加 CutMix 逻辑（只适用于检测任务中的图像混合）
+            apply_cutmix = False
+            cutmix_alpha = self.config.get('cutmix_alpha', 0.0)
+            if isinstance(self.config.get('train'), dict):
+                cutmix_alpha = self.config.get('train', {}).get('cutmix_alpha', cutmix_alpha)
+            
+            mixcut_prob = self.config.get('mixcut_prob', 0.5)
+            if isinstance(self.config.get('train'), dict):
+                mixcut_prob = self.config.get('train', {}).get('mixcut_prob', mixcut_prob)
+            
+            # CutMix 只应用于图像，保持目标不变（简化实现）
+            if cutmix_alpha > 0 and random.random() < mixcut_prob:
+                apply_cutmix = True
+                
+                # 将图像移到设备上进行混合
+                if isinstance(images[0], torch.Tensor):
+                    device_images = [img.to(self.device) for img in images]
+                    stacked_images = torch.stack(device_images)
+                    dummy_labels = torch.zeros(len(images), dtype=torch.long).to(self.device)
+                    
+                    # 导入并应用 CutMix
+                    from src.utils.augmentation import AugmentationPipeline
+                    mixed_images, _, _, _ = AugmentationPipeline.cutmix_data(stacked_images, dummy_labels, cutmix_alpha)
+                    
+                    # 将混合后的图像拆分回列表
+                    images = list(torch.unbind(mixed_images))
             
             # 将图像和目标移动到设备上
             if isinstance(images[0], torch.Tensor):
@@ -757,6 +824,9 @@ class Trainer:
             batch_metrics = {k: v.item() for k, v in loss_dict.items()}
             batch_metrics['loss'] = losses.item()
             batch_metrics['batch_size'] = len(images)
+            
+            if apply_cutmix:
+                batch_metrics['cutmix_applied'] = 1.0
             
             return batch_metrics
             

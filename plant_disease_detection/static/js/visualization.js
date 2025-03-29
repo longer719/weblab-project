@@ -13,12 +13,12 @@ const PlantVis = (function() {
             mild: '#FFC107', 
             moderate: '#FF9800',
             severe: '#F44336',
-            highlight: 'rgba(255, 255, 0, 0.3)',
+            highlight: 'rgba(255, 255, 0, 0.4)', // 稍微提高高亮透明度
             boxDefault: '#2196F3',
             boxHighlight: '#FF4081'
         },
-        opacity: 0.6,
-        lineWidth: 2,
+        opacity: 0.35, // 降低填充透明度，让底层图像更可见
+        lineWidth: 3,   // 增加线宽以提高可见性
         fontSize: 14,
         fontFamily: 'Arial, sans-serif',
         animationDuration: 300,
@@ -111,7 +111,7 @@ const PlantVis = (function() {
         });
         
         // 为阈值滑块添加委托事件（需要input事件）
-        document.body.addEventListener('input', function(e) {
+        let throttledThresholdUpdate = throttle(function(e) {
             if (e.target && e.target.classList.contains('threshold-slider')) {
                 const threshold = parseFloat(e.target.value);
                 console.log('阈值调整:', threshold);
@@ -126,7 +126,9 @@ const PlantVis = (function() {
                 state.threshold = threshold;
                 updateVisualizationThreshold(threshold);
             }
-        });
+        }, 50); // 50ms的节流时间，平衡响应和性能
+
+        document.body.addEventListener('input', throttledThresholdUpdate);
     }
     
     /**
@@ -275,21 +277,28 @@ const PlantVis = (function() {
                     const textWidth = ctx.measureText(displayText).width;
                     const textHeight = config.fontSize;
                     
-                    // 确保标签在图像内
-                    let textX = x1;
-                    let textY = y1 - textHeight - 5;
+                    // 改进标签位置计算
+                    const textBgHeight = textHeight + 6; // 增加高度提供垂直空间
+                    
+                    // 优先在框的上方放置标签，如果空间不足则放在框内顶部
+                    let textY = y1 - 5; // 默认在框上方
                     
                     // 如果标签会超出图像顶部，则放在框的内部顶部
-                    if (textY < textHeight) {
-                        textY = y1 + textHeight;
+                    if (textY - textBgHeight < 0) {
+                        textY = y1 + textBgHeight;
                     }
                     
-                    ctx.fillStyle = boxColor;
-                    ctx.fillRect(textX, textY - textHeight, textWidth + 6, textHeight + 4);
+                    // 计算背景矩形位置
+                    const textX = x1;
+                    const textBgY = textY - textBgHeight;
                     
-                    // 绘制标签文本
+                    // 绘制半透明深色背景，确保文本可读性
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.fillRect(textX, textBgY, textWidth + 6, textBgHeight);
+                    
+                    // 绘制标签文本，使用白色确保可读性
                     ctx.fillStyle = '#FFFFFF';
-                    ctx.fillText(displayText, textX + 3, textY);
+                    ctx.fillText(displayText, textX + 3, textY - 3);
                 }
             }
         });
@@ -314,14 +323,14 @@ const PlantVis = (function() {
         // 默认选项
         const opts = {
             opacity: options.opacity || 0.7,
-            radius: options.radius || 30,
-            blur: options.blur || 20,
+            radius: options.radius || 25, // 稍微减小半径使热点更聚焦
+            blur: options.blur || 25,     // 增加模糊以使过渡更平滑
             gradient: options.gradient || {
-                0.2: 'blue',
-                0.4: 'cyan',
-                0.6: 'lime',
-                0.8: 'yellow',
-                1.0: 'red'
+                0.1: 'blue',    // 起始于0.1而不是0.2
+                0.3: 'cyan',
+                0.5: 'lime',
+                0.7: 'yellow',
+                0.95: 'red'     // 使用0.95而不是1.0，让最高点更明显
             }
         };
         
@@ -419,8 +428,9 @@ const PlantVis = (function() {
             // 确保数据有效
             if (point.x < 0 || point.y < 0 || point.x > width || point.y > height) return;
             
-            const radius = Math.max(5, point.radius || 25);
-            const alpha = Math.min(1, Math.max(0.2, point.value || 0.5));
+            // 调整半径和透明度值
+            const radius = Math.max(8, point.radius || 25);  // 确保最小半径
+            const alpha = Math.min(0.95, Math.max(0.3, point.value || 0.5)); // 限制透明度范围
             
             try {
                 // 创建径向渐变
@@ -429,12 +439,12 @@ const PlantVis = (function() {
                     point.x, point.y, radius
                 );
                 
-                // 设置渐变颜色 - 更丰富的颜色过渡
-                gradient.addColorStop(0, `rgba(255, 0, 0, ${alpha})`);
-                gradient.addColorStop(0.25, `rgba(255, 120, 0, ${alpha * 0.9})`);
-                gradient.addColorStop(0.5, `rgba(255, 255, 0, ${alpha * 0.7})`);
-                gradient.addColorStop(0.75, `rgba(0, 255, 128, ${alpha * 0.5})`);
-                gradient.addColorStop(1, `rgba(0, 0, 255, 0)`);
+                // 使用更平滑、更符合热感知的颜色渐变
+                gradient.addColorStop(0, `rgba(255, 0, 0, ${alpha})`);       // 红色(中心)
+                gradient.addColorStop(0.3, `rgba(255, 120, 0, ${alpha * 0.8})`); // 橙色
+                gradient.addColorStop(0.5, `rgba(255, 255, 0, ${alpha * 0.7})`); // 黄色
+                gradient.addColorStop(0.75, `rgba(0, 255, 128, ${alpha * 0.4})`); // 绿色
+                gradient.addColorStop(1, `rgba(0, 0, 255, 0)`);              // 透明蓝色(边缘)
                 
                 // 绘制圆
                 heatCtx.beginPath();
@@ -453,14 +463,14 @@ const PlantVis = (function() {
         
         // 应用模糊效果使热图更平滑
         try {
-            heatCtx.filter = 'blur(15px)';
+            heatCtx.filter = 'blur(18px)'; // 增加模糊量
             heatCtx.drawImage(heatLayer, 0, 0);
         } catch (e) {
             console.warn('应用模糊效果失败', e);
         }
         
-        // 将热图层叠加到主画布上
-        ctx.globalAlpha = 0.6;
+        // 将热图层叠加到主画布上，调整透明度
+        ctx.globalAlpha = 0.65; // 略微调整透明度
         ctx.drawImage(heatLayer, 0, 0);
         ctx.globalAlpha = 1.0;
     }
@@ -483,8 +493,8 @@ const PlantVis = (function() {
         // 选项整合
         const opts = {
             scoreThreshold: options.scoreThreshold || state.threshold,
-            boxOpacity: options.boxOpacity || 0.8,
-            heatmapOpacity: options.heatmapOpacity || 0.6
+            boxOpacity: options.boxOpacity || 0.65, // 降低框的不透明度
+            heatmapOpacity: options.heatmapOpacity || 0.5 // 降低热图的不透明度
         };
         
         // 过滤检测结果
@@ -516,13 +526,18 @@ const PlantVis = (function() {
             // 使用备用方法渲染热图 (更可靠)
             fallbackHeatmapRender(heatCtx, heatmapData, image.width, image.height);
             
-            // 叠加热图层
+            // 叠加热图层，使用调整后的透明度
             ctx.globalAlpha = opts.heatmapOpacity;
             ctx.drawImage(heatLayer, 0, 0);
             ctx.globalAlpha = 1.0;
             
             // 最后叠加边界框
-            const boxOpts = {...options, opacity: opts.boxOpacity};
+            const boxOpts = {
+                ...options, 
+                opacity: opts.boxOpacity, 
+                showLabels: true, 
+                showScores: true
+            };
             const boxCanvas = renderDetectionBoxes(image, filteredDetections, boxOpts);
             
             // 从边界框画布中只提取边界框部分 (忽略背景)
@@ -612,11 +627,12 @@ const PlantVis = (function() {
                 // 根据置信度调整透明度
                 const alpha = det.score * opts.opacity;
                 
-                // GradCAM常用的红-黄配色
+                // GradCAM常用的红-黄配色，使用更平滑的渐变
                 gradient.addColorStop(0, `rgba(255, 0, 0, ${alpha})`);
-                gradient.addColorStop(0.6, `rgba(255, 165, 0, ${alpha * 0.8})`);
-                gradient.addColorStop(0.8, `rgba(255, 255, 0, ${alpha * 0.5})`);
-                gradient.addColorStop(1, `rgba(255, 255, 0, 0)`);
+                gradient.addColorStop(0.4, `rgba(255, 128, 0, ${alpha * 0.9})`); // 新增中间橙色调
+                gradient.addColorStop(0.7, `rgba(255, 255, 0, ${alpha * 0.7})`);
+                gradient.addColorStop(0.9, `rgba(255, 255, 128, ${alpha * 0.5})`); // 新增浅黄色调
+                gradient.addColorStop(1, `rgba(255, 255, 220, 0)`); // 淡黄色渐隐
                 
                 // 填充热区
                 heatCtx.fillStyle = gradient;
@@ -654,15 +670,25 @@ const PlantVis = (function() {
         // 清空容器
         container.innerHTML = '';
         
+        // 创建一个包装器并添加滚动阴影效果
+        const canvasWrapper = document.createElement('div');
+        canvasWrapper.style.position = 'relative';
+        canvasWrapper.style.width = '100%';
+        canvasWrapper.style.overflow = 'hidden';
+        canvasWrapper.style.borderRadius = '8px';
+        canvasWrapper.style.boxShadow = '0 3px 10px rgba(0,0,0,0.15)';
+        canvasWrapper.style.marginBottom = '15px';
+        
         // 添加画布和设置样式 - 使用CSS控制显示尺寸
         canvas.style.maxWidth = '100%';
         canvas.style.height = 'auto';
-        container.appendChild(canvas);
+        canvas.style.display = 'block';
+        
+        canvasWrapper.appendChild(canvas);
+        container.appendChild(canvasWrapper);
         
         // 记录画布实际渲染尺寸和显示尺寸
         console.log('显示可视化：画布实际尺寸', canvas.width, 'x', canvas.height);
-        
-        // 其余代码保持不变...
         
         // 保存当前可视化状态
         state.lastRenderedCanvas = canvas;
@@ -677,6 +703,16 @@ const PlantVis = (function() {
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'download-btn';
             downloadBtn.innerHTML = '<i class="fas fa-download"></i> 下载分析结果';
+            downloadBtn.style.backgroundColor = '#4CAF50';
+            downloadBtn.style.color = 'white';
+            downloadBtn.style.border = 'none';
+            downloadBtn.style.padding = '8px 16px';
+            downloadBtn.style.borderRadius = '4px';
+            downloadBtn.style.cursor = 'pointer';
+            downloadBtn.style.display = 'flex';
+            downloadBtn.style.alignItems = 'center';
+            downloadBtn.style.gap = '6px';
+            downloadBtn.style.margin = '0 auto 15px';
             container.appendChild(downloadBtn);
         }
         
@@ -688,9 +724,10 @@ const PlantVis = (function() {
                 enableModeSwitch: options.enableModeSwitch,
                 currentMode: options.currentMode || state.currentMode,
                 visModes: options.visModes || [
-                    { label: '边界框', value: 'boxes' },
-                    { label: '热图', value: 'heatmap' },
-                    { label: '混合', value: 'blend' }
+                    { label: '边界框', value: 'boxes', icon: 'fa-border-all' },
+                    { label: '热图', value: 'heatmap', icon: 'fa-fire' },
+                    { label: '混合', value: 'blend', icon: 'fa-object-group' },
+                    { label: '热力图分析', value: 'gradcam', icon: 'fa-burn' }
                 ]
             });
         }
@@ -711,13 +748,29 @@ const PlantVis = (function() {
             const thresholdControl = document.createElement('div');
             thresholdControl.className = 'threshold-control';
             
+            // 创建包含标签和值的容器
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'threshold-label-container';
+            labelContainer.style.display = 'flex';
+            labelContainer.style.justifyContent = 'space-between';
+            labelContainer.style.marginBottom = '5px';
+            
             const label = document.createElement('label');
             label.textContent = '置信度阈值: ';
+            label.style.fontWeight = 'bold';
             
             const value = document.createElement('span');
             value.className = 'threshold-value';
-            value.textContent = options.threshold || config.defaultScoreThreshold;
+            value.textContent = (options.threshold || config.defaultScoreThreshold).toFixed(2);
+            value.style.fontWeight = 'bold';
+            value.style.color = '#2196F3';
             
+            // 添加标签和值到容器
+            labelContainer.appendChild(label);
+            labelContainer.appendChild(value);
+            thresholdControl.appendChild(labelContainer);
+            
+            // 创建并设置滑块
             const slider = document.createElement('input');
             slider.type = 'range';
             slider.className = 'threshold-slider';
@@ -725,10 +778,13 @@ const PlantVis = (function() {
             slider.max = '1';
             slider.step = '0.01';
             slider.value = options.threshold || config.defaultScoreThreshold;
+            slider.style.width = '100%';
+            slider.style.height = '6px';
+            slider.style.borderRadius = '3px';
+            slider.style.backgroundColor = '#e0e0e0';
+            slider.style.outline = 'none';
             
-            thresholdControl.appendChild(label);
             thresholdControl.appendChild(slider);
-            thresholdControl.appendChild(value);
             controlPanel.appendChild(thresholdControl);
         }
         
@@ -736,34 +792,67 @@ const PlantVis = (function() {
         if (options.enableModeSwitch) {
             const modeControl = document.createElement('div');
             modeControl.className = 'mode-control';
+            modeControl.style.marginTop = '15px';
             
             const modeLabel = document.createElement('div');
             modeLabel.textContent = '可视化模式:';
+            modeLabel.style.fontWeight = 'bold';
+            modeLabel.style.marginBottom = '5px';
             modeControl.appendChild(modeLabel);
             
-            // 从选项中获取可用的模式或使用默认
+            // 获取可用模式
             const modeOptions = options.visModes || [
-                { label: '边界框', value: 'boxes', icon: 'fa-square-o' },
+                { label: '边界框', value: 'boxes', icon: 'fa-border-all' },
                 { label: '热图', value: 'heatmap', icon: 'fa-fire' },
-                { label: '混合', value: 'blend', icon: 'fa-object-group' }
+                { label: '混合', value: 'blend', icon: 'fa-object-group' },
+                { label: 'GradCAM', value: 'gradcam', icon: 'fa-burn' }
             ];
             
             const modeButtons = document.createElement('div');
             modeButtons.className = 'mode-buttons';
+            modeButtons.style.display = 'flex';
+            modeButtons.style.gap = '8px';
+            modeButtons.style.flexWrap = 'wrap';
             
+            // 创建每个模式的按钮
             modeOptions.forEach(mode => {
                 const btn = document.createElement('button');
                 btn.className = `vis-mode-switch ${mode.value === (options.currentMode || 'boxes') ? 'active' : ''}`;
                 btn.dataset.mode = mode.value;
+                
                 // 使用提供的图标或默认图标
                 const icon = mode.icon || 'fa-image';
                 btn.innerHTML = `<i class="fas ${icon}"></i> ${mode.label}`;
+                
+                // 添加按钮样式
+                btn.style.padding = '8px 12px';
+                btn.style.border = '1px solid #ccc';
+                btn.style.borderRadius = '4px';
+                btn.style.backgroundColor = mode.value === (options.currentMode || 'boxes') ? '#2196F3' : '#f5f5f5';
+                btn.style.color = mode.value === (options.currentMode || 'boxes') ? 'white' : '#333';
+                btn.style.cursor = 'pointer';
+                btn.style.transition = 'all 0.2s ease';
+                btn.style.display = 'flex';
+                btn.style.alignItems = 'center';
+                btn.style.justifyContent = 'center';
+                btn.style.gap = '5px';
+                
+                // 添加工具提示
+                btn.title = `切换到${mode.label}模式`;
+                
                 modeButtons.appendChild(btn);
             });
             
             modeControl.appendChild(modeButtons);
             controlPanel.appendChild(modeControl);
         }
+        
+        // 整体控制面板样式
+        controlPanel.style.backgroundColor = '#f9f9f9';
+        controlPanel.style.borderRadius = '6px';
+        controlPanel.style.padding = '12px';
+        controlPanel.style.marginTop = '10px';
+        controlPanel.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
         
         container.appendChild(controlPanel);
     }
@@ -943,7 +1032,7 @@ const PlantVis = (function() {
             const centerY = (y1 + y2) / 2;
             
             // 添加主中心点 - 更精确的配置
-            const mainPointRadius = Math.max(width, height) * 0.4;
+            const mainPointRadius = Math.max(width, height) * 0.35; // 减小中心热点半径
             heatmapData.push({
                 x: centerX,
                 y: centerY,
@@ -953,29 +1042,30 @@ const PlantVis = (function() {
             
             // 根据置信度和区域大小添加更多点
             const confidence = det.score || 0.5;
-            const pointCount = 5 + Math.floor(confidence * 10); // 更多点
-            const maxRadius = Math.min(width, height) * 0.3;
+            // 根据置信度和区域大小调整点数
+            const pointCount = 3 + Math.floor(confidence * 12); // 减少基础点，增加根据置信度变化的点
+            const maxRadius = Math.min(width, height) * 0.25; // 减小随机点半径
             
             // 在区域内添加随机点，形成更自然的热图
             for (let i = 0; i < pointCount; i++) {
                 // 使用高斯分布生成更自然的散布
                 const u = Math.random() * 2 - 1; // -1 到 1
                 const v = Math.random() * 2 - 1; // -1 到 1
-                const distance = Math.sqrt(u*u + v*v) * 0.7; // 标准差缩放
+                const distance = Math.sqrt(u*u + v*v) * 0.6; // 压缩标准差，使点更集中
                 
                 if (distance > 1) continue; // 丢弃超出单位圆的点
                 
                 // 将点映射到边界框内
-                const offsetX = u * width * 0.4;
-                const offsetY = v * height * 0.4;
+                const offsetX = u * width * 0.35; // 使点更集中在中心区域
+                const offsetY = v * height * 0.35;
                 
                 const pointX = Math.max(0, Math.min(centerX + offsetX, imageWidth));
                 const pointY = Math.max(0, Math.min(centerY + offsetY, imageHeight));
                 
-                // 中心附近点的值更高
-                const distanceFromCenter = Math.sqrt(offsetX*offsetX + offsetY*offsetY) / Math.sqrt(width*width + height*height);
-                const pointValue = confidence * (1 - distanceFromCenter*0.8);
-                const pointRadius = maxRadius * (1 - distanceFromCenter*0.5);
+                // 中心附近点的值更高，与中心的距离越远值越低
+                const distanceFromCenter = Math.sqrt(offsetX*offsetX + offsetY*offsetY) / Math.sqrt(width*width/4 + height*height/4);
+                const pointValue = confidence * (1 - distanceFromCenter*0.7); // 使值的衰减更快
+                const pointRadius = maxRadius * (1 - distanceFromCenter*0.4); // 使半径的衰减更慢
                 
                 heatmapData.push({
                     x: pointX,
@@ -987,6 +1077,18 @@ const PlantVis = (function() {
         });
         
         return heatmapData;
+    }
+
+    // 添加节流功能，用于提高滑动条操作时的渲染性能
+    function throttle(func, delay) {
+        let lastCall = 0;
+        return function(...args) {
+            const now = new Date().getTime();
+            if (now - lastCall >= delay) {
+                lastCall = now;
+                return func.apply(this, args);
+            }
+        };
     }
 
     // 公开API

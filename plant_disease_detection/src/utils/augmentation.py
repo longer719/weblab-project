@@ -290,7 +290,7 @@ class AugmentationPipeline:
         return [basic_transform, h_flip, rotate, brightness]
     
     @staticmethod
-    def mixup_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor, float, torch.Tensor]:
+    def mixup_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
         """
         实现MixUp数据增强
         
