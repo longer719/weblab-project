@@ -27,7 +27,7 @@ model:
   # anchor_sizes: ...
   # anchor_ratios: ...
   box_score_thresh: 0.3
-  box_nms_thresh: 0.45
+  box_nms_thresh: 0.55
   rpn_nms_thresh: 0.7
 
 # 训练配置 - 针对RTX 4090D优化

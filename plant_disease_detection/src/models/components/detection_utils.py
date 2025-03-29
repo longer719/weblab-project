@@ -153,7 +153,7 @@ class NMSUtils:
     
     @staticmethod
     def apply_nms(boxes: torch.Tensor, scores: torch.Tensor, 
-                 iou_threshold: float = 0.5) -> torch.Tensor:
+                 iou_threshold: float = 0.55) -> torch.Tensor:
         """
         应用标准NMS
         
@@ -169,7 +169,7 @@ class NMSUtils:
     
     @staticmethod
     def apply_soft_nms(boxes: torch.Tensor, scores: torch.Tensor,
-                      iou_threshold: float = 0.5,
+                      iou_threshold: float = 0.55,
                       sigma: float = 0.5,
                       score_threshold: float = 0.001) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -244,7 +244,7 @@ class NMSUtils:
     
     @staticmethod
     def apply_weighted_nms(boxes: torch.Tensor, scores: torch.Tensor, labels: torch.Tensor,
-                          iou_threshold: float = 0.5, score_threshold: float = 0.05) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                          iou_threshold: float = 0.55, score_threshold: float = 0.05) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         应用加权NMS，适用于小密集病斑检测
         

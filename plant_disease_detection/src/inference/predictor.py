@@ -273,6 +273,7 @@ class DetectionPredictor(BasePredictor):
         self.is_dict_mapping = isinstance(class_names, dict)
         self.score_threshold = self.config_manager.get(
             'DETECTION_SCORE_THRESHOLD', score_threshold, "model")
+        logger.info(f"检测阈值设置为: {self.score_threshold}")
         
     def predict(self, image: Union[str, np.ndarray, Image.Image], plant_type: str = None) -> Dict[str, Any]:
         """

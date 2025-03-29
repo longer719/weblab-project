@@ -165,7 +165,7 @@ class DiseaseDetector(BaseModel):
             weights=weights,
             weights_backbone=weights_backbone,
             box_score_thresh=self.box_score_thresh,
-            box_nms_thresh=self.box_nms_thresh,
+            box_nms_thresh=self.box_nms_thresh,  # 这里会使用从配置中读取的阈值
             box_detections_per_img=self.box_detections_per_img,
             min_size=self.min_size,
             max_size=self.max_size

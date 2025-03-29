@@ -3,7 +3,7 @@
     "num_classes": 38,
     "min_size": 800,
     "max_size": 1333,
-    "box_score_thresh": 0.05,
-    "box_nms_thresh": 0.5,
+    "box_score_thresh": 0.5,
+    "box_nms_thresh": 0.55,
     "box_detections_per_img": 100
   }
