@@ -110,7 +110,7 @@ def create_detector(config, anchor_config=None):
     detector_config = config.get('model', {}).copy()
     
     # 如果有自动计算的锚框配置，使用它
-    if anchor_config:
+    if (anchor_config):
         detector_config['anchor_sizes'] = anchor_config['sizes']
         detector_config['anchor_ratios'] = anchor_config['aspect_ratios']
     else:
@@ -258,12 +258,12 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     logging.info(f"--- [阶段 1/2] 开始训练检测器头部 ({warmup_epochs} epochs) ---")
     
     # 冻结骨干网络
-    if hasattr(model, 'backbone'):
-        logging.info("冻结骨干网络参数...")
-        for param in model.backbone.parameters():
+    if hasattr(model, 'detector') and hasattr(model.detector, 'backbone'):
+        logging.info("冻结骨干网络参数 (detector.backbone)...")
+        for param in model.detector.backbone.parameters():
             param.requires_grad = False
     else:
-        logging.warning("模型未找到 'backbone' 属性，将训练所有可训练层。")
+        logging.warning(f"模型未找到 detector.backbone 属性，将训练所有可训练层。")
     
     # 获取检测头部参数
     head_params = []
@@ -365,18 +365,20 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     logging.info(f"\n--- [阶段 2/2] 开始微调整个检测器 ({total_epochs - warmup_epochs} epochs) ---")
     
     # 解冻骨干网络
-    if hasattr(model, 'backbone'):
-        logging.info("解冻骨干网络参数...")
-        for param in model.backbone.parameters():
+    if hasattr(model, 'detector') and hasattr(model.detector, 'backbone'):
+        logging.info("解冻骨干网络参数 (detector.backbone)...")
+        for param in model.detector.backbone.parameters():
             param.requires_grad = True
+    else:
+        logging.warning(f"模型未找到 detector.backbone 属性，无法解冻骨干网络。")
     
     # 构建差分学习率参数组
     param_groups = []
     
     # 获取骨干网络参数
     backbone_params = []
-    if hasattr(model, 'backbone'):
-        backbone_params = list(model.backbone.parameters())
+    if hasattr(model, 'detector') and hasattr(model.detector, 'backbone'):
+        backbone_params = list(model.detector.backbone.parameters())
         param_groups.append({'params': backbone_params, 'lr': backbone_lr})  # 骨干网络低学习率
     
     # 获取检测头参数

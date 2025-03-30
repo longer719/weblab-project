@@ -15,12 +15,6 @@ from torchvision import transforms
 from src.utils.config_manager import ConfigManager
 
 # 导入pytorch-grad-cam相关库
-# Define empty placeholder classes to avoid errors when package is missing
-OfficialGradCAM = None
-ClassifierOutputTarget = None
-show_cam_on_image = None
-GRADCAM_AVAILABLE = False
-
 try:
     from pytorch_grad_cam import GradCAM as OfficialGradCAM
     from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
@@ -28,6 +22,7 @@ try:
     GRADCAM_AVAILABLE = True
 except ImportError:
     logging.warning("pytorch-grad-cam库未安装，某些功能将不可用。运行 'pip install pytorch-grad-cam' 安装。")
+    GRADCAM_AVAILABLE = False
 
 class GradCAM:
     """Grad-CAM实现类，用于可视化模型关注区域"""
@@ -157,7 +152,7 @@ class ModelInterpreter:
             class_names: 类别名称列表，用于显示
             
         Returns:
-            叠加了热力图的可视化图像(numpy数组)
+             叠加了热力图的可视化图像(numpy数组)
         """
         # 转换输入图像为标准格式(Tensor和numpy)
         img_tensor, rgb_img = self._prepare_image(image)

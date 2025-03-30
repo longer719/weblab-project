@@ -33,7 +33,7 @@ model:
 # 训练配置 - 针对RTX 4090D优化
 train:
   epochs: 50            # 目标检测通常收敛较快
-  lr: 0.0005            # 轻微调整学习率
+  lr: 0.0001            # 降低学习率以避免loss=nan问题
   optimizer: "AdamW"
   scheduler: "CosineAnnealingLR"  # 保持现有的设置
   scheduler_params:              # <-- 新增调度器参数子字典
