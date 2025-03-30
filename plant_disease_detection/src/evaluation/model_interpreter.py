@@ -152,7 +152,7 @@ class ModelInterpreter:
             class_names: 类别名称列表，用于显示
             
         Returns:
-             叠加了热力图的可视化图像(numpy数组)
+              叠加了热力图的可视化图像(numpy数组)
         """
         # 转换输入图像为标准格式(Tensor和numpy)
         img_tensor, rgb_img = self._prepare_image(image)
@@ -195,12 +195,26 @@ class ModelInterpreter:
         
         # 添加标题和类别信息
         title = "Grad-CAM 热力图"
-        if class_names is not None and class_idx < len(class_names):
-            title += f"\n类别: {class_names[class_idx]}"
+        if class_names is not None:
+            # 处理类别名称，支持字典格式（ID -> 名称）
+            if isinstance(class_names, dict):
+                # 将class_idx转为字符串以匹配字典键
+                name = class_names.get(str(class_idx))
+                if name:
+                    title += f"\n类别: {name} (ID: {class_idx})"
+                else:
+                    title += f"\n类别索引: {class_idx}"
+            else:
+                # 如果是列表格式，检查索引是否有效
+                if class_idx < len(class_names):
+                    title += f"\n类别: {class_names[class_idx]}"
+                else:
+                    title += f"\n类别索引: {class_idx}"
         else:
             title += f"\n类别索引: {class_idx}"
             
         plt.title(title)
+        
         plt.axis('off')
         
         plt.tight_layout()

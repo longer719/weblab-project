@@ -48,21 +48,21 @@ def parse_args():
 
 def load_class_mapping(model_dir, task):
     """加载类别映射"""
-    mapping_file = None
-    if task == 'classification':
-        mapping_file = os.path.join(model_dir, 'plant_classes.json')
-    elif task == 'detection':
-        mapping_file = os.path.join(model_dir, 'disease_classes.json')
-    
+    # 统一使用 plant_classes.json，因为我们已经统一了映射
+    mapping_file = os.path.join(model_dir, 'plant_classes.json')  # 修改：不再区分任务类型
+
     if mapping_file and os.path.exists(mapping_file):
         try:
             with open(mapping_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                # 直接返回加载的映射（ID -> 中文名）
+                id_to_name_map = json.load(f)
+                logging.info(f"成功加载类别映射，包含 {len(id_to_name_map)} 个类别")
+                return id_to_name_map  # 返回 ID->Name 字典
         except Exception as e:
             logging.error(f"加载类别映射失败: {str(e)}")
-    
-    logging.warning(f"找不到类别映射文件，将使用类别索引")
-    return None
+
+    logging.warning(f"找不到或无法加载类别映射文件 {mapping_file}，将使用类别索引")
+    return None  # 返回 None
 
 def main():
     """主函数"""
