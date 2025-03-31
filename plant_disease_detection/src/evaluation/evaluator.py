@@ -265,17 +265,13 @@ class DetectionEvaluator(BaseEvaluator):
         with torch.no_grad():
             for batch in tqdm(data_loader, desc="评估"):
                 # 获取输入和标签
-                # 修改这部分代码以处理列表格式的图像
-                if isinstance(batch['images'], list):
-                    # 列表格式的批次处理
-                    images = [img.to(self.device) for img in batch['images']]
-                    targets = [{k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
-                             for k, v in t.items()} for t in batch['targets']]
-                else:
-                    # 张量格式的批次处理（原来的代码）
-                    images = batch['images'].to(self.device)
-                    targets = [{k: v.to(self.device) for k, v in t.items() if isinstance(v, torch.Tensor)}
-                            for t in batch['targets']]
+                # 直接解包元组，处理由detection_collate_fn函数返回的([img1, img2, ...], [tgt1, tgt2, ...])格式
+                images_list, targets_list = batch  # 直接解包元组
+
+                # 将图像移动到设备，处理目标字典中的张量
+                images = [img.to(self.device) for img in images_list]
+                targets = [{k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+                         for k, v in t.items()} for t in targets_list]
                 
                 # 获取预测
                 outputs = self.model(images)

@@ -1,0 +1,98 @@
+2025-03-12 08:22:04,814 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 08:22:04,814 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 08:30:03,714 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 08:30:03,714 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 08:30:03,730 - INFO - 实验目录创建: experiments\plant_disease_detector_v02_20250312_083003
+2025-03-12 08:30:03,731 - INFO - 配置保存到: experiments\plant_disease_detector_v02_20250312_083003\config.json
+2025-03-12 08:30:03,731 - INFO - 开始训练检测器模型
+2025-03-12 08:30:03,766 - INFO - 使用设备: cuda
+2025-03-12 08:30:05,693 - INFO - 加载train数据集: 46136个样本
+2025-03-12 08:30:06,432 - INFO - 加载val数据集: 19787个样本
+2025-03-12 08:30:06,479 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-12 08:37:21,102 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 08:37:21,103 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 08:37:21,108 - INFO - 实验目录创建: experiments\plant_disease_detector_v02_20250312_083721
+2025-03-12 08:37:21,108 - INFO - 配置保存到: experiments\plant_disease_detector_v02_20250312_083721\config.json
+2025-03-12 08:37:21,110 - INFO - 开始训练检测器模型
+2025-03-12 08:37:21,141 - INFO - 使用设备: cuda
+2025-03-12 08:37:23,032 - INFO - 加载train数据集: 46136个样本
+2025-03-12 08:37:23,747 - INFO - 加载val数据集: 19787个样本
+2025-03-12 08:37:23,766 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-12 08:37:24,556 - INFO - 开始训练检测器，epochs: 50
+2025-03-12 08:37:24,557 - INFO - 开始训练...
+2025-03-12 08:43:43,779 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 08:43:43,780 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 08:43:43,787 - INFO - 实验目录创建: experiments\plant_disease_detector_v02_20250312_084343
+2025-03-12 08:43:43,787 - INFO - 配置保存到: experiments\plant_disease_detector_v02_20250312_084343\config.json
+2025-03-12 08:43:43,788 - INFO - 开始训练检测器模型
+2025-03-12 08:43:43,820 - INFO - 使用设备: cuda
+2025-03-12 08:43:45,673 - INFO - 加载train数据集: 46136个样本
+2025-03-12 08:43:46,367 - INFO - 加载val数据集: 19787个样本
+2025-03-12 08:43:46,388 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-12 08:43:47,089 - INFO - 开始训练检测器，epochs: 50
+2025-03-12 08:43:47,100 - INFO - 开始训练...
+2025-03-12 08:56:58,092 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 08:56:58,093 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 08:56:58,098 - INFO - 实验目录创建: experiments\plant_disease_detector_v02_lightweight_20250312_085658
+2025-03-12 08:56:58,098 - INFO - 配置保存到: experiments\plant_disease_detector_v02_lightweight_20250312_085658\config.json
+2025-03-12 08:56:58,099 - INFO - 开始训练检测器模型
+2025-03-12 08:56:58,135 - INFO - 使用设备: cuda
+2025-03-12 08:56:58,135 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-12 08:57:00,145 - INFO - 过滤后的数据集大小: 11077
+2025-03-12 09:00:56,113 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 09:00:56,114 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 09:00:56,119 - INFO - 实验目录创建: experiments\plant_disease_detector_v02_lightweight_20250312_090056
+2025-03-12 09:00:56,120 - INFO - 配置保存到: experiments\plant_disease_detector_v02_lightweight_20250312_090056\config.json
+2025-03-12 09:00:56,120 - INFO - 开始训练检测器模型
+2025-03-12 09:00:56,157 - INFO - 使用设备: cuda
+2025-03-12 09:00:56,158 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-12 09:00:58,076 - INFO - 过滤后的数据集大小: 11077
+2025-03-12 09:00:58,085 - INFO - 加载train数据集: 11077个样本
+2025-03-12 09:00:58,087 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-12 09:00:58,831 - INFO - 过滤后的数据集大小: 4751
+2025-03-12 09:00:58,836 - INFO - 加载val数据集: 4751个样本
+2025-03-12 09:07:21,485 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-12 09:07:21,486 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-12 09:07:21,492 - INFO - 实验目录创建: experiments\plant_disease_detector_v02_lightweight_20250312_090721
+2025-03-12 09:07:21,493 - INFO - 配置保存到: experiments\plant_disease_detector_v02_lightweight_20250312_090721\config.json
+2025-03-12 09:07:21,494 - INFO - 开始训练检测器模型
+2025-03-12 09:07:21,526 - INFO - 使用设备: cuda
+2025-03-12 09:07:21,526 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-12 09:07:23,659 - INFO - 过滤后的数据集大小: 11077
+2025-03-12 09:07:23,671 - INFO - 加载train数据集: 11077个样本
+2025-03-12 09:07:23,671 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-12 09:07:24,465 - INFO - 过滤后的数据集大小: 4751
+2025-03-12 09:07:24,471 - INFO - 加载val数据集: 4751个样本
+2025-03-12 09:07:24,493 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-12 09:07:25,063 - INFO - 开始训练检测器，epochs: 30
+2025-03-12 09:07:25,066 - INFO - 开始训练...
+2025-03-12 10:12:47,027 - INFO - Epoch 1: train_loss: 0.0368, train_loss_classifier: 0.0297, train_loss_box_reg: 0.0058, train_loss_objectness: 0.0011, train_loss_rpn_box_reg: 0.0002
+2025-03-12 10:16:57,943 - INFO - Epoch 1: val_loss: 0.0168, val_loss_classifier: 0.0166, val_loss_box_reg: 0.0002, val_loss_objectness: 0.0000, val_loss_rpn_box_reg: 0.0000
+2025-03-12 10:16:58,379 - INFO - Validation metric improved from inf to 0.016772. Saving model...
+2025-03-12 11:22:35,505 - INFO - Epoch 2: train_loss: 0.0465, train_loss_classifier: 0.0406, train_loss_box_reg: 0.0057, train_loss_objectness: 0.0000, train_loss_rpn_box_reg: 0.0001
+2025-03-12 11:26:44,465 - INFO - Epoch 2: val_loss: 0.1090, val_loss_classifier: 0.0968, val_loss_box_reg: 0.0122, val_loss_objectness: 0.0000, val_loss_rpn_box_reg: 0.0000
+2025-03-12 11:26:44,921 - INFO - EarlyStopping counter: 1 out of 10
+2025-03-12 12:31:46,268 - INFO - Epoch 3: train_loss: nan, train_loss_classifier: nan, train_loss_box_reg: 0.0161, train_loss_objectness: 0.0000, train_loss_rpn_box_reg: 0.0003
+2025-03-12 12:35:54,215 - INFO - Epoch 3: val_loss: 0.0911, val_loss_classifier: 0.0631, val_loss_box_reg: 0.0272, val_loss_objectness: 0.0001, val_loss_rpn_box_reg: 0.0007
+2025-03-12 12:35:54,668 - INFO - EarlyStopping counter: 2 out of 10
+2025-03-12 13:41:00,191 - INFO - Epoch 4: train_loss: nan, train_loss_classifier: nan, train_loss_box_reg: 0.0335, train_loss_objectness: 0.0001, train_loss_rpn_box_reg: 0.0007
+2025-03-12 13:45:08,913 - INFO - Epoch 4: val_loss: 0.0911, val_loss_classifier: 0.0631, val_loss_box_reg: 0.0272, val_loss_objectness: 0.0001, val_loss_rpn_box_reg: 0.0007
+2025-03-12 13:45:09,360 - INFO - EarlyStopping counter: 3 out of 10
+2025-03-13 00:09:13,657 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-13 00:09:13,658 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-13 00:09:13,666 - INFO - 实验目录创建成功: experiments\plant_disease_detector_v02_lightweight
+2025-03-13 00:09:13,666 - INFO - 开始训练检测器模型
+2025-03-13 00:09:13,702 - INFO - 使用设备: cuda
+2025-03-13 00:09:13,702 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-13 00:09:15,650 - INFO - 过滤后的数据集大小: 11077
+2025-03-13 00:09:15,661 - INFO - 加载train数据集: 11077个样本
+2025-03-13 00:09:15,661 - INFO - 过滤数据集，只使用这些植物类别: ['Corn', 'Grape', 'Orange']
+2025-03-13 00:09:16,392 - INFO - 过滤后的数据集大小: 4751
+2025-03-13 00:09:16,397 - INFO - 加载val数据集: 4751个样本
+2025-03-13 00:09:16,419 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-13 00:09:16,897 - INFO - 开始训练检测器，epochs: 30
+2025-03-13 00:09:16,898 - INFO - 开始训练...
+2025-03-13 01:11:59,400 - INFO - Epoch 1: train_loss: nan, train_loss_classifier: nan, train_loss_box_reg: nan, train_loss_objectness: nan, train_loss_rpn_box_reg: nan
+2025-03-13 01:14:05,331 - INFO - Epoch 1: val_loss: nan, val_loss_classifier: nan, val_loss_box_reg: nan, val_loss_objectness: nan, val_loss_rpn_box_reg: nan
+2025-03-13 01:58:55,439 - INFO - Epoch 2: train_loss: nan, train_loss_classifier: nan, train_loss_box_reg: nan, train_loss_objectness: nan, train_loss_rpn_box_reg: nan
+2025-03-13 02:01:00,912 - INFO - Epoch 2: val_loss: nan, val_loss_classifier: nan, val_loss_box_reg: nan, val_loss_objectness: nan, val_loss_rpn_box_reg: nan

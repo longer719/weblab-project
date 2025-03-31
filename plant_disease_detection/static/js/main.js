@@ -1007,6 +1007,14 @@
                         image.naturalWidth, // 使用原始宽度
                         image.naturalHeight // 使用原始高度
                     );
+                    
+                    // 添加保护，确保所有点的半径为正
+                    if (heatmapData && heatmapData.length > 0) {
+                        heatmapData.forEach(point => {
+                            point.radius = Math.max(point.radius, 1);
+                        });
+                    }
+                    
                     canvas = PlantVis.renderHeatmap(image, heatmapData);
                     break;
                     
@@ -1148,43 +1156,24 @@
      * 根据检测结果生成热图数据
      */
     function generateHeatmapData(detections, width, height) {
-        console.log("生成热图数据，图像尺寸:", width, "x", height);
-        console.log("检测结果:", detections);
-        
         const heatmapData = [];
-        
         detections.forEach(detection => {
-            const bbox = detection.bbox;
-            // 中心点
-            const centerX = bbox.x + bbox.width / 2;
-            const centerY = bbox.y + bbox.height / 2;
+            // 计算检测框中心点
+            const centerX = detection.bbox.x + detection.bbox.width / 2;
+            const centerY = detection.bbox.y + detection.bbox.height / 2;
             
-            // 主热点 - 病害中心
+            // 以检测框的大小为基础计算热点半径
+            // 添加保护逻辑，确保半径永远为正数
+            let radius = Math.max(detection.bbox.width, detection.bbox.height) * 0.7;
+            radius = Math.max(radius, 1); // 确保半径至少为1像素
+            
             heatmapData.push({
                 x: centerX,
                 y: centerY,
                 value: detection.score,
-                // 半径与检测框大小成正比
-                radius: Math.max(bbox.width, bbox.height) * 0.7
+                radius: radius
             });
-            
-            // 生成额外热点，提高热图密度
-            const numExtraPoints = 5;
-            for (let i = 0; i < numExtraPoints; i++) {
-                // 在边界框内生成随机点
-                const offsetX = (Math.random() - 0.5) * bbox.width * 0.8;
-                const offsetY = (Math.random() - 0.5) * bbox.height * 0.8;
-                
-                heatmapData.push({
-                    x: centerX + offsetX,
-                    y: centerY + offsetY,
-                    value: detection.score * (0.3 + Math.random() * 0.4),
-                    radius: Math.max(bbox.width, bbox.height) * 0.2 * (0.4 + Math.random() * 0.6)
-                });
-            }
         });
-        
-        console.log("生成的热图数据:", heatmapData);
         return heatmapData;
     }
 

@@ -50,7 +50,7 @@ train:
   save_interval: 5
   vis_samples: 10
   early_stopping:
-    patience: 10
+    patience: 20
     delta: 0.001
     mode: 'max'  # 对于mAP，使用'max'模式
     monitor: 'mAP'  # 使用mAP作为监控指标

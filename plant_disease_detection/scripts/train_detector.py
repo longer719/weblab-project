@@ -443,7 +443,7 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
         'grad_accumulation_steps': config_manager.get_dict_compatible(train_config, "grad_accumulation_steps", 1, "train"),
         'scheduler': scheduler_config_stage2,
         'early_stopping': {
-            'patience': 15,
+            'patience': 20,
             'delta': 0.001,
             'mode': 'max',
             'monitor': 'mAP'

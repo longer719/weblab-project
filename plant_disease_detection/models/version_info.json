@@ -1,14 +1,14 @@
 {
   "classifier": {
-    "version": "v0.0.1",
-    "date": "2025-03-17 13:41:32",
+    "version": "v1.0.2",
+    "date": "2025-03-31 15:45:10",
     "description": "从实验部署的classifier模型",
-    "experiment_dir": "D:\\Git_Workspace\\weblab-project\\plant_disease_detection\\experiments\\plant_classifier_v03_full_dataset"
+    "experiment_dir": "D:\\Git_Workspace\\weblab-project\\plant_disease_detection\\experiments\\plant_classifier_second_version_full_dataset"
   },
   "detector": {
     "version": "v0.0.1",
-    "date": "2025-03-17 13:41:33",
+    "date": "2025-03-31 15:45:11",
     "description": "从实验部署的detector模型",
-    "experiment_dir": "D:\\Git_Workspace\\weblab-project\\plant_disease_detection\\experiments\\disease_detector_v03_full_dataset"
+    "experiment_dir": "D:\\Git_Workspace\\weblab-project\\plant_disease_detection\\experiments\\disease_detector_second_version_full_dataset"
   }
 }

@@ -225,7 +225,7 @@ class DetectionDataset(BaseDataset):
         """获取数据集样本数量"""
         return len(self.samples)  # 使用samples而不是data
     
-    def __getitem__(self, idx: int) -> Dict[str, Any]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """获取单个样本"""
         row = self.samples.iloc[idx]
         # 使用Path对象处理路径，确保跨平台兼容
@@ -280,9 +280,5 @@ class DetectionDataset(BaseDataset):
             'iscrowd': torch.zeros((len(boxes),), dtype=torch.int64)
         }
         
-        return {
-            'images': image,
-            'targets': target,
-            'image_path': str(img_path),
-            'original_size': (original_width, original_height)
-        }
+        # 修改这里: 只返回图像张量和目标字典
+        return image, target

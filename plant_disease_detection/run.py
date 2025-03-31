@@ -123,8 +123,20 @@ def load_models():
                 logging.warning(f"配置文件格式错误，将使用默认配置")
                 model_config = {"backbone": "resnet50", "num_classes": 38}
         
-        # 创建模型并加载权重
-        detector = DiseaseDetector(config=model_config)
+        # 创建检测器实例
+        if isinstance(model_config, dict) and 'model' in model_config:
+            # 如果配置是嵌套结构，提取model子字典
+            detector_config = model_config['model']
+            # 确保明确设置num_classes
+            logger.info(f"使用配置中的类别数: {detector_config.get('num_classes', 38)}")
+        else:
+            # 如果配置是平面结构，直接使用
+            detector_config = model_config
+            # 确保设置了num_classes
+            if 'num_classes' not in detector_config:
+                detector_config['num_classes'] = 38
+        
+        detector = DiseaseDetector(config=detector_config)
         state_dict = torch.load(detector_path, map_location=device)
         
         # 处理state_dict可能有所有键都带有module前缀的情况

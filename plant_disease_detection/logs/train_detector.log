@@ -96,3 +96,118 @@
 2025-03-13 01:14:05,331 - INFO - Epoch 1: val_loss: nan, val_loss_classifier: nan, val_loss_box_reg: nan, val_loss_objectness: nan, val_loss_rpn_box_reg: nan
 2025-03-13 01:58:55,439 - INFO - Epoch 2: train_loss: nan, train_loss_classifier: nan, train_loss_box_reg: nan, train_loss_objectness: nan, train_loss_rpn_box_reg: nan
 2025-03-13 02:01:00,912 - INFO - Epoch 2: val_loss: nan, val_loss_classifier: nan, val_loss_box_reg: nan, val_loss_objectness: nan, val_loss_rpn_box_reg: nan
+2025-03-30 23:06:35,470 - INFO - ==================================================
+2025-03-30 23:06:35,470 - INFO - 系统信息:
+2025-03-30 23:06:35,470 - INFO - Python版本: 3.12.3 | packaged by Anaconda, Inc. | (main, May  6 2024, 19:46:43) [GCC 11.2.0]
+2025-03-30 23:06:35,470 - INFO - PyTorch版本: 2.5.1+cu124
+2025-03-30 23:06:35,516 - INFO - CUDA是否可用: 是
+2025-03-30 23:06:35,516 - INFO - CUDA版本: 12.4
+2025-03-30 23:06:35,535 - INFO - GPU设备: NVIDIA GeForce RTX 4090 D
+2025-03-30 23:06:35,535 - INFO - GPU显存: 23.64GB
+2025-03-30 23:06:35,535 - INFO - ==================================================
+2025-03-30 23:06:35,540 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-30 23:06:35,540 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-30 23:06:35,542 - INFO - 实验目录创建成功: experiments/disease_detector_second_version_full_dataset
+2025-03-30 23:06:35,542 - INFO - 开始训练检测器模型
+2025-03-30 23:06:35,542 - INFO - 使用设备: cuda
+2025-03-30 23:06:35,542 - INFO - CUDA设备: NVIDIA GeForce RTX 4090 D
+2025-03-30 23:06:35,542 - INFO - CUDA内存总量: 23.64GB
+2025-03-30 23:06:35,542 - INFO - CUDA内存分配: 0.00GB
+2025-03-30 23:06:35,543 - INFO - CUDA内存缓存: 0.00GB
+2025-03-30 23:06:35,543 - INFO - 加载数据集...
+2025-03-30 23:06:35,543 - INFO - 使用完整PlantVillage数据集，包含所有14种植物
+2025-03-30 23:06:35,625 - INFO - 加载train数据集: 37995个样本
+2025-03-30 23:06:35,625 - INFO - 使用完整PlantVillage数据集，包含所有14种植物
+2025-03-30 23:06:35,661 - INFO - 加载val数据集: 16308个样本
+2025-03-30 23:06:35,711 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-30 23:06:35,711 - INFO - 创建检测器模型...
+2025-03-30 23:06:36,833 - INFO - 模型参数总数: 41,483,661
+2025-03-30 23:06:36,833 - INFO - 可训练参数数量: 41,261,261
+2025-03-30 23:06:36,834 - INFO - 创建数据加载器: 训练=37995样本/4750批次, 验证=16308样本/2039批次
+2025-03-30 23:06:36,834 - INFO - --- [阶段 1/2] 开始训练检测器头部 (3 epochs) ---
+2025-03-30 23:06:36,834 - WARNING - 模型未找到 'backbone' 属性，将训练所有可训练层。
+2025-03-30 23:06:36,834 - INFO - 获取封装检测器中的RPN和ROI头部参数...
+2025-03-30 23:06:36,834 - INFO - 检测头部参数数量: 14684365
+2025-03-30 23:06:36,834 - INFO - 阶段1使用AdamW优化器，lr=0.0005, weight_decay=0.0005
+2025-03-30 23:06:36,834 - INFO - 使用CosineAnnealingLR学习率调度器，参数: {'T_max': 3}
+2025-03-30 23:06:36,839 - INFO - 开始第一阶段训练，epochs: 3
+2025-03-30 23:06:36,839 - INFO - 开始训练...
+2025-03-30 23:42:53,865 - INFO - ==================================================
+2025-03-30 23:42:53,866 - INFO - 系统信息:
+2025-03-30 23:42:53,866 - INFO - Python版本: 3.12.3 | packaged by Anaconda, Inc. | (main, May  6 2024, 19:46:43) [GCC 11.2.0]
+2025-03-30 23:42:53,866 - INFO - PyTorch版本: 2.5.1+cu124
+2025-03-30 23:42:53,907 - INFO - CUDA是否可用: 是
+2025-03-30 23:42:53,907 - INFO - CUDA版本: 12.4
+2025-03-30 23:42:53,940 - INFO - GPU设备: NVIDIA GeForce RTX 4090 D
+2025-03-30 23:42:53,940 - INFO - GPU显存: 23.64GB
+2025-03-30 23:42:53,941 - INFO - ==================================================
+2025-03-30 23:42:53,944 - INFO - 从 configs/detector_training.yaml 加载配置
+2025-03-30 23:42:53,944 - INFO - 成功加载配置文件: configs/detector_training.yaml
+2025-03-30 23:42:53,945 - INFO - 实验目录创建成功: experiments/disease_detector_second_version_full_dataset
+2025-03-30 23:42:53,945 - INFO - 开始训练检测器模型
+2025-03-30 23:42:53,946 - INFO - 使用设备: cuda
+2025-03-30 23:42:53,946 - INFO - CUDA设备: NVIDIA GeForce RTX 4090 D
+2025-03-30 23:42:53,946 - INFO - CUDA内存总量: 23.64GB
+2025-03-30 23:42:53,946 - INFO - CUDA内存分配: 0.00GB
+2025-03-30 23:42:53,946 - INFO - CUDA内存缓存: 0.00GB
+2025-03-30 23:42:53,946 - INFO - 加载数据集...
+2025-03-30 23:42:53,946 - INFO - 使用完整PlantVillage数据集，包含所有14种植物
+2025-03-30 23:42:53,999 - INFO - 加载train数据集: 37995个样本
+2025-03-30 23:42:53,999 - INFO - 使用完整PlantVillage数据集，包含所有14种植物
+2025-03-30 23:42:54,023 - INFO - 加载val数据集: 16308个样本
+2025-03-30 23:42:54,061 - INFO - 样本格式: <class 'dict'>, 键: dict_keys(['images', 'targets', 'image_path', 'original_size'])
+2025-03-30 23:42:54,061 - INFO - 创建检测器模型...
+2025-03-30 23:42:54,783 - INFO - 模型参数总数: 41,483,661
+2025-03-30 23:42:54,784 - INFO - 可训练参数数量: 41,261,261
+2025-03-30 23:42:54,784 - INFO - 创建数据加载器: 训练=37995样本/4750批次, 验证=16308样本/2039批次
+2025-03-30 23:42:54,784 - INFO - --- [阶段 1/2] 开始训练检测器头部 (3 epochs) ---
+2025-03-30 23:42:54,784 - INFO - 冻结骨干网络参数 (detector.backbone)...
+2025-03-30 23:42:54,784 - INFO - 获取封装检测器中的RPN和ROI头部参数...
+2025-03-30 23:42:54,784 - INFO - 检测头部参数数量: 14684365
+2025-03-30 23:42:54,785 - INFO - 阶段1使用AdamW优化器，lr=0.0001, weight_decay=0.0005
+2025-03-30 23:42:54,785 - INFO - 使用CosineAnnealingLR学习率调度器，参数: {'T_max': 3}
+2025-03-30 23:42:54,787 - INFO - 开始第一阶段训练，epochs: 3
+2025-03-30 23:42:54,787 - INFO - 开始训练...
+2025-03-30 23:52:46,429 - INFO - Epoch 1: train_loss: 0.0731, train_loss_classifier: 0.0495, train_loss_box_reg: 0.0147, train_loss_objectness: 0.0019, train_loss_rpn_box_reg: 0.0070
+2025-03-30 23:57:29,610 - INFO - Validation mAP: 0.4690
+2025-03-30 23:57:31,051 - INFO - Epoch 1: val_mAP: 0.4690, val_loss: 0.0000
+2025-03-30 23:57:31,239 - INFO - Epoch 1学习率更新为: ['0.000040']
+2025-03-30 23:57:31,544 - INFO - Validation loss improved from -inf to 0.000000. Saving model...
+2025-03-31 00:07:35,790 - INFO - Epoch 2: train_loss: 0.0471, train_loss_classifier: 0.0316, train_loss_box_reg: 0.0083, train_loss_objectness: 0.0007, train_loss_rpn_box_reg: 0.0065
+2025-03-31 00:12:20,061 - INFO - Validation mAP: 0.6398
+2025-03-31 00:12:21,457 - INFO - Epoch 2: val_mAP: 0.6398, val_loss: 0.0000
+2025-03-31 00:12:21,640 - INFO - Epoch 2学习率更新为: ['0.000070']
+2025-03-31 00:12:22,046 - INFO - EarlyStopping counter: 1 out of 15
+2025-03-31 00:22:26,721 - INFO - Epoch 3: train_loss: 0.0454, train_loss_classifier: 0.0298, train_loss_box_reg: 0.0086, train_loss_objectness: 0.0006, train_loss_rpn_box_reg: 0.0064
+2025-03-31 00:27:11,495 - INFO - Validation mAP: 0.6772
+2025-03-31 00:27:12,838 - INFO - Epoch 3: val_mAP: 0.6772, val_loss: 0.0000
+2025-03-31 00:27:13,022 - INFO - Epoch 3学习率更新为: ['0.000100']
+2025-03-31 00:27:13,381 - INFO - EarlyStopping counter: 2 out of 15
+2025-03-31 00:27:13,382 - INFO - 
+--- [阶段 2/2] 开始微调整个检测器 (47 epochs) ---
+2025-03-31 00:27:13,382 - INFO - 解冻骨干网络参数 (detector.backbone)...
+2025-03-31 00:27:13,383 - INFO - 阶段2使用AdamW优化器，差分学习率，weight_decay=0.0005
+2025-03-31 00:27:13,383 - INFO - 阶段2使用CosineAnnealingLR调度器，T_max=47，eta_min=5e-07
+2025-03-31 00:27:13,384 - INFO - 使用CosineAnnealingLR学习率调度器，参数: {'T_max': 47, 'eta_min': 5e-07}
+2025-03-31 00:27:13,387 - INFO - 开始第二阶段训练，epochs: 47
+2025-03-31 00:27:13,387 - INFO - 开始训练...
+2025-03-31 00:44:56,131 - INFO - Epoch 1: train_loss: 0.0196, train_loss_classifier: 0.0121, train_loss_box_reg: 0.0040, train_loss_objectness: 0.0001, train_loss_rpn_box_reg: 0.0034
+2025-03-31 00:49:42,533 - INFO - Validation mAP: 0.9266
+2025-03-31 00:49:43,845 - INFO - Epoch 1: val_mAP: 0.9266, val_loss: 0.0000
+2025-03-31 00:49:44,029 - INFO - Epoch 1学习率更新为: ['0.000050', '0.000100']
+2025-03-31 00:49:44,512 - INFO - Validation loss improved from -inf to 0.000000. Saving model...
+2025-03-31 01:07:43,743 - INFO - Epoch 2: train_loss: 0.0109, train_loss_classifier: 0.0062, train_loss_box_reg: 0.0024, train_loss_objectness: 0.0001, train_loss_rpn_box_reg: 0.0022
+2025-03-31 01:12:32,495 - INFO - Validation mAP: 0.9541
+2025-03-31 01:12:33,835 - INFO - Epoch 2: val_mAP: 0.9541, val_loss: 0.0000
+2025-03-31 01:12:34,015 - INFO - Epoch 2学习率更新为: ['0.000050', '0.000100']
+2025-03-31 01:12:34,581 - INFO - EarlyStopping counter: 1 out of 15
+2025-03-31 01:30:28,940 - INFO - Epoch 3: train_loss: 0.0078, train_loss_classifier: 0.0042, train_loss_box_reg: 0.0015, train_loss_objectness: 0.0000, train_loss_rpn_box_reg: 0.0021
+2025-03-31 01:35:14,446 - INFO - Validation mAP: 0.9543
+2025-03-31 01:35:15,830 - INFO - Epoch 3: val_mAP: 0.9543, val_loss: 0.0000
+2025-03-31 01:35:16,017 - INFO - Epoch 3学习率更新为: ['0.000050', '0.000099']
+2025-03-31 01:35:16,578 - INFO - EarlyStopping counter: 2 out of 15
+2025-03-31 01:53:16,225 - INFO - Epoch 4: train_loss: 0.0066, train_loss_classifier: 0.0034, train_loss_box_reg: 0.0012, train_loss_objectness: 0.0000, train_loss_rpn_box_reg: 0.0020
+2025-03-31 01:58:04,710 - INFO - Validation mAP: 0.9799
+2025-03-31 01:58:05,994 - INFO - Epoch 4: val_mAP: 0.9799, val_loss: 0.0000
+2025-03-31 01:58:06,160 - INFO - Epoch 4学习率更新为: ['0.000049', '0.000098']
+2025-03-31 01:58:06,688 - INFO - EarlyStopping counter: 3 out of 15

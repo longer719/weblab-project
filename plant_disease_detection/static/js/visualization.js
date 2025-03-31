@@ -1110,7 +1110,29 @@ const PlantVis = (function() {
         clearVisualizations,
         
         // 工具方法
-        detectionsToHeatmap,
+        detectionsToHeatmap: function(detections, width, height) {
+            const data = [];
+            detections.forEach(det => {
+                // 计算中心点和半径
+                const box = det.box;
+                const centerX = (box[0] + box[2]) / 2;
+                const centerY = (box[1] + box[3]) / 2;
+                const boxWidth = box[2] - box[0];
+                const boxHeight = box[3] - box[1];
+                
+                // 添加保护逻辑，确保半径为正
+                let radius = Math.max(boxWidth, boxHeight) * 0.7;
+                radius = Math.max(radius, 1); // 确保半径至少为1像素
+                
+                data.push({
+                    x: centerX,
+                    y: centerY,
+                    value: det.score, 
+                    radius: radius
+                });
+            });
+            return data;
+        },
         
         // 用于调试的状态访问 (生产环境通常不需要)
         getState: () => ({...state})
