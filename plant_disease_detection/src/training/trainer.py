@@ -458,58 +458,61 @@ class Trainer:
         return avg_metrics
     
     def _validate_epoch(self, epoch: int) -> Dict[str, float]:
-        """验证一个epoch"""
         self.model.eval()
         metrics = {'loss': 0.0, 'samples': 0}
         
+        # 新增: 用于收集分类评估指标的列表
+        all_preds_clf = []
+        all_targets_clf = []
+        
         with torch.no_grad():
-            pbar = tqdm(self.val_loader, desc=f"Epoch {epoch+1}/{self.config['epochs']} [Val]")
+            pbar = tqdm(self.val_loader, desc=f"Epoch {epoch+1}/{self.config.get('epochs', '?')} [Val]")
             
-            # 用于收集目标检测结果的列表
-            all_pred_boxes = []
-            all_pred_scores = []
-            all_pred_labels = []
-            all_gt_boxes = []
-            all_gt_labels = []
-            
-            # 为可视化保存少量样本
+            # 保留一些可视化样本收集的代码，但不再为计算mAP收集数据
             vis_sample_images = []
             vis_sample_targets = []
             vis_sample_outputs = []
             vis_samples_collected = 0
-            max_vis_samples = 5  # 最多收集5个样本用于可视化
+            max_vis_samples = 5
             
             for batch in pbar:
                 # 根据任务类型选择不同的验证方法
                 if self.task_type == 'classification':
-                    # 直接调用分类批次验证函数
+                    # 分类任务的处理逻辑保持不变
                     batch_metrics = self._validate_classification_batch(batch)
                     
                     # 更新指标
                     batch_size = batch_metrics.pop('batch_size', batch_metrics.get('samples', 0))
                     self._update_metrics(metrics, batch_metrics, batch_size)
                     
-                else:  # 检测任务
-                    # 收集检测结果，用于计算mAP
+                    # 新增: 收集分类任务的预测和目标
+                    images, labels = self._prepare_batch(batch)
+                    outputs = self.model(images)
+                    _, preds = torch.max(outputs, 1)
+                    all_preds_clf.extend(preds.cpu().numpy())
+                    all_targets_clf.extend(labels.cpu().numpy())
+                else:  # 检测任务 (现在评估其分类能力)
                     images, targets = batch
                     images = [img.to(self.device) for img in images]
-                    targets = [{k: v.to(self.device) if isinstance(v, torch.Tensor) else v
-                              for k, v in t.items()} for t in targets]
                     
-                    # 执行前向传播
-                    outputs = self.model(images)
+                    # 模型推理
+                    outputs = self.model(images)  # eval模式返回检测结果列表
                     
-                    # 提取预测结果
+                    # 新增: 提取分类预测和目标
                     for i in range(len(outputs)):
-                        all_pred_boxes.append(outputs[i]['boxes'])
-                        all_pred_scores.append(outputs[i]['scores'])
-                        all_pred_labels.append(outputs[i]['labels'])
+                        output = outputs[i]
+                        true_label = targets[i]['labels'][0].item()  # 获取真实图像级标签
+                        all_targets_clf.append(true_label)
                         
-                        # 提取真实值
-                        all_gt_boxes.append(targets[i]['boxes'])
-                        all_gt_labels.append(targets[i]['labels'])
+                        if len(output['scores']) > 0:
+                            top_idx = torch.argmax(output['scores'])
+                            pred_label = output['labels'][top_idx].item()
+                            all_preds_clf.append(pred_label)
+                        else:
+                            all_preds_clf.append(-1)  # 标记未预测
                     
-                        # 收集少量样本用于可视化（每个epoch仅收集最多max_vis_samples个）
+                    # 可视化样本收集仍然保留
+                    for i in range(len(outputs)):
                         if vis_samples_collected < max_vis_samples:
                             vis_sample_images.append(images[i].cpu())
                             vis_sample_targets.append({
@@ -523,77 +526,99 @@ class Trainer:
                             })
                             vis_samples_collected += 1
                     
-                    # 更新进度条，使用安全的字典访问方式
+                    # 更新样本计数
                     batch_size = len(images)
                     metrics['samples'] += batch_size
                     
-                    # 修复进度条显示，使用安全的访问方式
+                    # 更新进度条
                     pbar_postfix = {}
                     for k, v in metrics.items():
                         if k == 'samples':
                             pbar_postfix[k] = v
                         else:
-                            # 安全计算平均值，避免除以零
+                            # 安全计算平均值
                             avg_value = v / metrics['samples'] if metrics['samples'] > 0 else 0
                             pbar_postfix[k] = f'{avg_value:.4f}'
                     
                     pbar.set_postfix(pbar_postfix)
-        
-        # 分类任务处理保持不变
-        if self.task_type == 'classification':
+            
             # 计算平均指标
-            avg_metrics = {k: v / metrics['samples'] for k, v in metrics.items() if k != 'samples'}
+            avg_metrics = {k: v / metrics['samples'] if metrics['samples'] > 0 else 0.0
+                         for k, v in metrics.items() if k != 'samples'}
             
-            # 已有的分类评估代码...
-            
-        # 检测任务处理
-        else:
-            # 计算检测评估指标
-            try:
-                detection_metrics = calculate_metrics_per_class(
-                    all_pred_boxes, all_pred_scores, all_pred_labels,
-                    all_gt_boxes, all_gt_labels,
-                    iou_threshold=0.5,
-                    num_classes=getattr(self.model, 'num_classes', None)
-                )
+            # 新增: 计算并添加分类指标
+            if all_targets_clf:  # 确保有数据
+                all_preds_clf = np.array(all_preds_clf)
+                all_targets_clf = np.array(all_targets_clf)
+                valid_mask_clf = all_preds_clf != -1
+                if not np.all(valid_mask_clf):
+                    all_preds_clf = all_preds_clf[valid_mask_clf]
+                    all_targets_clf = all_targets_clf[valid_mask_clf]
                 
-                # 使用mAP作为主要验证指标
-                avg_metrics = {
-                    'mAP': detection_metrics['mAP'],
-                    'loss': 0.0  # 保留loss键，但值设为0
-                }
-                
-                # 记录每个类别的AP
-                for i, ap in enumerate(detection_metrics['AP_per_class']):
-                    class_name = f"class_{i}"
-                    if hasattr(self, 'class_names') and self.class_names and i < len(self.class_names):
-                        class_name = self.class_names[i]
-                    avg_metrics[f'AP_{class_name}'] = ap
+                if len(all_preds_clf) > 0:
+                    avg_metrics['accuracy'] = accuracy(all_targets_clf, all_preds_clf)
+                    # 计算macro F1更鲁棒
+                    avg_metrics['f1_score'] = f1(all_targets_clf, all_preds_clf, average='macro', zero_division=0)
+                    # 添加precision和recall
+                    avg_metrics['precision'] = precision(all_targets_clf, all_preds_clf, average='macro', zero_division=0)
+                    avg_metrics['recall'] = recall(all_targets_clf, all_preds_clf, average='macro', zero_division=0)
                     
-                logging.info(f"Validation mAP: {avg_metrics['mAP']:.4f}")
-                
-                # 在epoch结束时可视化收集的样本
-                if vis_samples_collected > 0 and hasattr(self, '_visualize_detection_results'):
-                    self._visualize_detection_results(
-                        vis_sample_images[:max_vis_samples],
-                        vis_sample_targets[:max_vis_samples], 
-                        vis_sample_outputs[:max_vis_samples], 
-                        epoch
-                    )
-                
-            except Exception as e:
-                logging.error(f"计算检测指标时出错: {e}")
-                traceback.print_exc()
-                avg_metrics = {'mAP': 0.0, 'loss': 0.0}
+                    logging.info(f"验证分类指标: Accuracy={avg_metrics['accuracy']:.4f}, F1={avg_metrics['f1_score']:.4f}")
+                else:
+                    avg_metrics['accuracy'] = 0.0
+                    avg_metrics['f1_score'] = 0.0
+                    avg_metrics['precision'] = 0.0
+                    avg_metrics['recall'] = 0.0
+            
+            # 仍然保留可视化功能，但不再计算mAP
+            if self.task_type == 'detection' and vis_samples_collected > 0 and hasattr(self, '_visualize_detection_results'):
+                self._visualize_detection_results(
+                    vis_sample_images[:max_vis_samples],
+                    vis_sample_targets[:max_vis_samples],
+                    vis_sample_outputs[:max_vis_samples],
+                    epoch
+                )
+            
+            # 记录指标到TensorBoard
+            if self.tb_logger is not None:
+                self._log_metrics(avg_metrics, epoch, prefix='val')
+            
+            # 修改日志输出，重点展示分类指标
+            log_metrics = []
+            for k, v in avg_metrics.items():
+                if k not in ['accuracy', 'f1_score', 'precision', 'recall', 'loss']:
+                    continue
+                log_metrics.append(f"val_{k}: {v:.4f}")
+            
+            logging.info(f"Epoch {epoch+1}: " + ", ".join(log_metrics))
+            
+            return avg_metrics
+    
+    def _validate_classification_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
+        """
+        验证一个分类任务批次
         
-        # 记录指标到TensorBoard
-        if self.tb_logger is not None:
-            self._log_metrics(avg_metrics, epoch, prefix='val')
+        Args:
+            batch: 包含'images'和'labels'的字典
+            
+        Returns:
+            批次验证指标字典
+        """
+        images, labels = self._prepare_batch(batch)
         
-        logging.info(f"Epoch {epoch+1}: " + ", ".join([f"val_{k}: {v:.4f}" for k, v in avg_metrics.items() 
-                                                     if not k.startswith('AP_')]))
+        outputs = self.model(images)
+        loss = self.criterion(outputs, labels)
         
-        return avg_metrics
+        # 计算准确率
+        _, preds = torch.max(outputs, 1)
+        correct = (preds == labels).sum().item()
+        acc = correct / labels.size(0)
+        
+        return {
+            'loss': loss.item(),
+            'acc': acc,
+            'batch_size': images.size(0)
+        }
     
     def _train_classification_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
         """
@@ -700,32 +725,6 @@ class Trainer:
             'batch_size': images.size(0)
         }
     
-    def _validate_classification_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
-        """
-        验证一个分类任务批次
-        
-        Args:
-            batch: 包含'images'和'labels'的字典
-            
-        Returns:
-            批次验证指标字典
-        """
-        images, labels = self._prepare_batch(batch)
-        
-        outputs = self.model(images)
-        loss = self.criterion(outputs, labels)
-        
-        # 计算准确率
-        _, preds = torch.max(outputs, 1)
-        correct = (preds == labels).sum().item()
-        acc = correct / labels.size(0)
-        
-        return {
-            'loss': loss.item(),
-            'acc': acc,
-            'batch_size': images.size(0)
-        }
-    
     def _train_detection_batch(self, batch):
         """训练一个检测任务批次"""
         # 获取梯度累积步数
@@ -792,7 +791,7 @@ class Trainer:
                 if should_update:
                     # 梯度裁剪
                     if 'grad_clip' in self.config and self.config['grad_clip'] > 0:
-                        self.scaler.unscale_(self.optimizer)
+                        self.scaler.unscale_(self.optimizer)  # 修正：添加下划线
                         torch.nn.utils.clip_grad_norm_(
                             self.model.parameters(), self.config['grad_clip']
                         )

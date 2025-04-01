@@ -315,7 +315,7 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     elif scheduler_name == 'ReduceLROnPlateau':
         scheduler_config_stage1['args'] = {'mode': 'min', 'factor': 0.5, 'patience': 2}
     
-    # 创建第一阶段训练器配置
+    # 在创建第一阶段训练器配置时修改early_stopping
     trainer_config_stage1 = {
         'epochs': warmup_epochs,
         'save_freq': config_manager.get_dict_compatible(train_config, "save_interval", 5, "train"),
@@ -326,8 +326,8 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
         'early_stopping': {
             'patience': 15,
             'delta': 0.001,
-            'mode': 'max',
-            'monitor': 'mAP'
+            'mode': 'max',          # 更改为max
+            'monitor': 'accuracy'   # 更改为accuracy
         },
         'tensorboard': {
             'enabled': True,
@@ -434,7 +434,7 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
         scheduler_config_stage2['args'] = {'mode': 'min', 'factor': 0.5, 'patience': 5}
         logging.info(f"阶段2使用ReduceLROnPlateau调度器，mode=min，factor=0.5，patience=5")
     
-    # 创建第二阶段训练器配置
+    # 在创建第二阶段训练器配置时也需要修改
     trainer_config_stage2 = {
         'epochs': remaining_epochs,
         'save_freq': config_manager.get_dict_compatible(train_config, "save_interval", 5, "train"),
@@ -445,8 +445,8 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
         'early_stopping': {
             'patience': 20,
             'delta': 0.001,
-            'mode': 'max',
-            'monitor': 'mAP'
+            'mode': 'max',          # 更改为max
+            'monitor': 'accuracy'   # 更改为accuracy
         },
         'tensorboard': {
             'enabled': True,
@@ -552,51 +552,176 @@ def train_detector(config: Dict[str, Any], experiment_dir: Path, checkpoint_path
     # 获取测试数据集
     test_dataset = get_detection_dataset(config, mode='test')
     
-    # 评估模型
-    logging.info("训练完成，开始评估模型性能...")
-    evaluation_results = evaluate_detector(model, test_dataset, experiment_dir)
-    
+    # 评估模型 (现在是评估分类性能)
+    logging.info("训练完成，开始评估模型的分类性能...")
+    evaluation_results = evaluate_detector(model, test_dataset, experiment_dir) # 调用修改后的函数
+
     # 返回模型和训练结果，添加评估结果
     combined_results = {
         'train_metrics': train_history,
         'val_metrics': val_history,
-        'evaluation': evaluation_results
+        'evaluation_classification': evaluation_results # 将评估结果放入新 key
     }
     
     return model, combined_results
 
 
-def evaluate_detector(model: DiseaseDetector, dataset: DetectionDataset, experiment_dir: Path) -> Dict[str, float]:
-    """评估检测器模型性能"""
-    from src.evaluation.evaluator import DetectionEvaluator
-    
-    # 创建评估器
-    evaluator = DetectionEvaluator(model)
-    
-    # 创建数据加载器，确保使用相同的collate_fn
+def evaluate_detector(model: DiseaseDetector, dataset: DetectionDataset, experiment_dir: Path) -> Dict[str, Any]:
+    """评估"检测"模型的分类性能"""
+    # 不再使用 DetectionEvaluator 计算 mAP
+    # 改为使用类似分类器的评估逻辑
+    from src.evaluation.metrics import (
+        accuracy, precision, recall, f1, confusion_matrix, plot_confusion_matrix
+    )
+
+    # 加载映射文件，以获取类别的中文名称
+    mapping_path = experiment_dir.parent.parent / 'models' / 'plant_classes.json'
+    id_to_name_map = {}
+    if mapping_path.exists():
+        try:
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                id_to_name_map = json.load(f)
+            logging.info(f"成功加载类别映射文件: {mapping_path}")
+        except Exception as e:
+            logging.warning(f"读取映射文件出错: {e}")
+    else:
+        # 尝试其他可能的路径
+        alt_paths = [
+            Path('models/plant_classes.json'),
+            Path('models/plantvillage_mapping.json'),
+            experiment_dir.parent.parent / 'configs' / 'plantvillage_mapping.json'
+        ]
+        
+        for path in alt_paths:
+            if path.exists():
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        id_to_name_map = json.load(f)
+                    logging.info(f"成功加载备用类别映射文件: {path}")
+                    break
+                except Exception:
+                    continue
+        
+        if not id_to_name_map:
+            logging.warning(f"找不到类别映射文件，将使用默认类别名称")
+
+    logging.info("开始评估检测模型的分类性能...")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
+
+    # 创建数据加载器
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=4,
         shuffle=False,
         num_workers=4,
-        collate_fn=detection_collate_fn  # 使用与训练时相同的collate_fn
+        collate_fn=detection_collate_fn
     )
-    
-    # 执行评估
-    output_dir = experiment_dir / "evaluation"
+
+    all_preds = []
+    all_targets = []
+
+    with torch.no_grad():
+        pbar = tqdm(data_loader, desc="评估分类性能")
+        for batch in pbar:
+            images, targets = batch
+            images = [img.to(device) for img in images]
+
+            # 模型推理
+            outputs = model(images)
+
+            # 提取每个图像最高置信度的预测类别
+            for i in range(len(outputs)):
+                output = outputs[i]
+                true_label = targets[i]['labels'][0].item()
+                all_targets.append(true_label)
+
+                if len(output['scores']) > 0:
+                    top_idx = torch.argmax(output['scores'])
+                    pred_label = output['labels'][top_idx].item()
+                    all_preds.append(pred_label)
+                else:
+                    all_preds.append(-1)
+
+    # 计算分类指标
+    all_preds = np.array(all_preds)
+    all_targets = np.array(all_targets)
+
+    # 过滤掉未预测的样本
+    valid_mask = all_preds != -1
+    if not np.all(valid_mask):
+        logging.warning(f"有 {np.sum(~valid_mask)} 个样本未能生成预测，将从评估中排除。")
+        all_preds = all_preds[valid_mask]
+        all_targets = all_targets[valid_mask]
+
+    results = {}
+    if len(all_preds) > 0:
+        results['accuracy'] = accuracy(all_targets, all_preds)
+        results['precision'] = precision(all_targets, all_preds, average='macro')
+        results['recall'] = recall(all_targets, all_preds, average='macro')
+        results['f1_score'] = f1(all_targets, all_preds, average='macro')
+        results['confusion_matrix'] = confusion_matrix(all_targets, all_preds)
+        logging.info(f"评估完成: Accuracy={results['accuracy']:.4f}, Precision={results['precision']:.4f}, Recall={results['recall']:.4f}, F1={results['f1_score']:.4f}")
+    else:
+        logging.warning("没有有效的预测结果，无法计算分类指标。")
+        results = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0, 'confusion_matrix': None}
+
+    # 保存评估摘要
+    output_dir = experiment_dir / "evaluation_classification"
     output_dir.mkdir(exist_ok=True)
-    
-    logging.info("开始评估检测模型...")
-    results = evaluator.evaluate(data_loader, str(output_dir))
-    
-    # 输出主要指标
-    logging.info(f"mAP (IoU=0.5): {results['mAP']*100:.2f}%")
-    
-    # 输出每个类别的AP
-    for i, ap in enumerate(results['AP_per_class']):
-        class_name = dataset.class_names[i] if hasattr(dataset, 'class_names') else f"类别 {i}"
-        logging.info(f"AP - {class_name}: {ap*100:.2f}%")
-    
+    summary_path = output_dir / "evaluation_summary_clf.txt"
+    with open(summary_path, 'w', encoding='utf-8') as f:
+        f.write("===== 模型分类性能评估结果摘要 =====\n\n")
+        f.write(f"模型类型: DiseaseDetector (作为分类器评估)\n")
+        f.write(f"设备: {device}\n\n")
+        f.write("性能指标:\n")
+        for k, v in results.items():
+            if isinstance(v, (int, float)):
+                f.write(f"  {k}: {v:.4f}\n")
+    logging.info(f"分类评估摘要已保存: {summary_path}")
+
+    # 绘制混淆矩阵 - 修复部分
+    if results['confusion_matrix'] is not None:
+        try:
+            # 设置 matplotlib 支持中文
+            plt.rcParams['font.sans-serif'] = ['SimHei']
+            plt.rcParams['axes.unicode_minus'] = False
+            
+            # 修复: 动态创建类名列表，基于混淆矩阵维度
+            matrix_size = results['confusion_matrix'].shape[0]
+            class_names_list = []
+            
+            for i in range(matrix_size):
+                # 尝试从映射获取类名，如果不存在则使用默认名
+                class_name = id_to_name_map.get(str(i))
+                if not class_name and isinstance(dataset.class_names, list) and i < len(dataset.class_names):
+                    class_name = dataset.class_names[i]
+                if not class_name:
+                    class_name = f'类别_{i}'
+                class_names_list.append(class_name)
+
+            # 绘制非归一化混淆矩阵
+            plt.figure(figsize=(18, 15))
+            plot_confusion_matrix(results['confusion_matrix'], class_names_list, normalize=False, cmap=plt.cm.Blues)
+            cm_path = output_dir / "confusion_matrix_clf.png"
+            plt.savefig(cm_path, dpi=100, bbox_inches='tight')
+            plt.close()
+            logging.info(f"分类混淆矩阵图已保存: {cm_path}")
+
+            # 绘制归一化混淆矩阵
+            plt.figure(figsize=(18, 15))
+            plot_confusion_matrix(results['confusion_matrix'], class_names_list, normalize=True, cmap=plt.cm.Blues)
+            cm_norm_path = output_dir / "confusion_matrix_clf_normalized.png"
+            plt.savefig(cm_norm_path, dpi=100, bbox_inches='tight')
+            plt.close()
+            logging.info(f"归一化分类混淆矩阵图已保存: {cm_norm_path}")
+
+        except Exception as e:
+            logging.error(f"绘制混淆矩阵失败: {e}")
+            import traceback
+            traceback.print_exc()
+
     return results
 
 
@@ -747,26 +872,18 @@ def save_model(model: DiseaseDetector, config: Dict, experiment_dir: Path) -> st
 
 def detection_collate_fn(batch):
     """
-    自定义收集函数，处理不同大小的图像和目标
+    自定义收集函数，处理不同大小的图像和目标。
+    现在处理 Dataset 返回 (image, target) 元组的情况。
     """
     images = []
     targets = []
     
-    for sample in batch:
-        # 从样本中提取图像和目标
-        if 'images' in sample:
-            images.append(sample['images'])
-        elif 'image' in sample:
-            images.append(sample['image'])
-        else:
-            raise KeyError(f"样本中既没有'images'也没有'image'键。可用的键: {list(sample.keys())}")
-            
-        if 'targets' in sample:
-            targets.append(sample['targets'])
-        elif 'target' in sample:
-            targets.append(sample['target'])
-        else:
-            raise KeyError(f"样本中没有'targets'或'target'键。可用的键: {list(sample.keys())}")
+    # batch 现在是 [(img1, tgt1), (img2, tgt2), ...] 这样的列表
+    for sample_tuple in batch:
+        # 直接从元组解包
+        image, target = sample_tuple
+        images.append(image)
+        targets.append(target)
     
     return images, targets
 

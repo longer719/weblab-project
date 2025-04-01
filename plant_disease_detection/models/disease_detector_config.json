@@ -1,49 +1,26 @@
 {
-    "data": {
-      "data_dir": "data/processed",
-      "batch_size": 8,
-      "train_split": 0.7,
-      "val_split": 0.1,
-      "test_split": 0.2,
-      "num_workers": 16
-    },
-    "model": {
-      "backbone": "resnet50",
-      "num_classes": 38,
-      "pretrained": true,
-      "min_size": 800,
-      "max_size": 1333,
-      "compute_anchors": false,
-      "box_score_thresh": 0.3,
-      "box_nms_thresh": 0.55,
-      "rpn_nms_thresh": 0.7
-    },
-    "train": {
-      "epochs": 50,
-      "lr": 0.0001,
-      "optimizer": "AdamW",
-      "scheduler": "CosineAnnealingLR",
-      "scheduler_params": {
-        "eta_min": 5e-07
-      },
-      "weight_decay": 0.0005,
-      "mixed_precision": true,
-      "warmup_epochs": 3,
-      "backbone_lr": 5e-05,
-      "mixup_alpha": 0.0,
-      "cutmix_alpha": 1.0,
-      "mixcut_prob": 0.5,
-      "grad_accumulation_steps": 2,
-      "seed": 42,
-      "save_interval": 5,
-      "vis_samples": 10,
-      "early_stopping": {
-        "patience": 20,
-        "delta": 0.001,
-        "mode": "max",
-        "monitor": "mAP"
-      },
-      "device": "cuda"
-    },
-    "experiment_name": "disease_detector_second_version_full_dataset"
-  }
+  "num_classes": 38,
+  "backbone": "resnet50",
+  "enable_mask": false,
+  "min_size": 800,
+  "max_size": 1333,
+  "anchor_sizes": [
+    [
+      16,
+      32,
+      64,
+      128,
+      256
+    ]
+  ],
+  "anchor_ratios": [
+    [
+      0.5,
+      1.0,
+      2.0
+    ]
+  ],
+  "confidence_threshold": 0.5,
+  "nms_threshold": 0.45,
+  "detections_per_img": 100
+}

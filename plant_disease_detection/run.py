@@ -451,6 +451,7 @@ def main():
         # 将同一映射同时设置为植物类别和病害类别映射
         app.plant_class_names = class_id_to_name_map
         app.disease_class_names = class_id_to_name_map  # 使用同一映射
+        app.class_id_to_name_map = class_id_to_name_map  # 添加此行，确保属性名匹配
         
         # 获取服务配置
         host = config_manager.get('API_HOST', '0.0.0.0', "api")

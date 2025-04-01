@@ -32,6 +32,8 @@ def parse_args():
     parser.add_argument('--num_workers', type=int, default=4, help='数据加载线程数')
     parser.add_argument('--visualize', action='store_true', help='是否生成可视化结果')
     parser.add_argument('--explain', action='store_true', help='是否生成模型解释可视化')
+    # 添加配置文件参数
+    parser.add_argument('--config', type=str, default=None, help='模型配置文件路径 (用于加载模型结构)')
     return parser.parse_args()
 
 def detection_collate_fn(batch):
@@ -86,16 +88,24 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     if args.task_type == 'classification':
-        # 创建默认配置字典
+        # 优先使用命令行指定的配置文件
+        config_path = args.config
+        # 默认配置
         config = {
             "backbone": "resnet50",
             "num_classes": 38,  # PlantVillage完整分类数
             "pretrained": False  # 评估阶段不需要预训练权重
         }
+
+        # 配置文件加载逻辑
+        if config_path and os.path.exists(config_path):
+            logging.info(f"使用命令行指定的配置文件: {config_path}")
+        elif os.path.exists(Path(args.model_path).parent / "plant_classifier_config.json"):
+            # 尝试从模型相邻的config文件加载配置
+            config_path = Path(args.model_path).parent / "plant_classifier_config.json"
+            logging.info(f"使用模型同目录下的配置文件: {config_path}")
         
-        # 尝试从模型相邻的config文件加载配置(如果存在)
-        config_path = Path(args.model_path).parent / "plant_classifier_config.json"
-        if config_path.exists():
+        if config_path and os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as f:
                     config = json.load(f)
@@ -115,16 +125,26 @@ def main():
         )
     else:  # detection
         # 检测器配置
+        # 默认配置
         config = {
             "num_classes": 38,  # 数据集类别数 
             "backbone": "resnet50"
         }
+
+        # 优先使用命令行指定的配置文件
+        config_path = args.config
+        
+        if config_path and os.path.exists(config_path):
+            logging.info(f"使用命令行指定的配置文件: {config_path}")
+        elif os.path.exists(Path(args.model_path).parent / "disease_detector_config.json"):
+            # 尝试从模型相邻的config文件加载配置
+            config_path = Path(args.model_path).parent / "disease_detector_config.json"
+            logging.info(f"使用模型同目录下的配置文件: {config_path}")
         
         # 尝试加载模型配置
-        config_path = Path(args.model_path).parent / "disease_detector_config.json"
-        if config_path.exists():
+        if config_path and os.path.exists(config_path):
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     config.update(json.load(f))
                 logging.info(f"已加载模型配置: {config_path}")
             except Exception as e:

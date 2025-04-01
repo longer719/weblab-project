@@ -255,7 +255,7 @@ class ClassificationPredictor(BasePredictor):
 
 
 class DetectionPredictor(BasePredictor):
-    """检测模型预测器"""
+    """检测模型预测器，现在强化其分类能力"""
     
     def __init__(self, model: nn.Module, class_names: Union[List[str], Dict[str, str]], 
                 score_threshold: float = 0.5, device: Optional[torch.device] = None):
@@ -264,7 +264,7 @@ class DetectionPredictor(BasePredictor):
         
         Args:
             model: 检测模型
-            class_names: 类别名称列表
+            class_names: 类别名称列表或字典（ID->名称映射）
             score_threshold: 检测阈值
             device: 运行设备
         """
@@ -277,73 +277,129 @@ class DetectionPredictor(BasePredictor):
         
     def predict(self, image: Union[str, np.ndarray, Image.Image], plant_type: str = None) -> Dict[str, Any]:
         """
-        对单个图像进行目标检测
-        
-        Args:
-            image: 输入图像
-            plant_type: 植物类型，用于针对特定植物的病害检测
-            
-        Returns:
-            检测结果
+        执行"伪检测"（图像级分类），返回最高置信度的预测和原始检测信息。
         """
-        # 保存原始图像尺寸
-        if isinstance(image, str) or isinstance(image, Path):
-            original_image = Image.open(image).convert('RGB')
-        elif isinstance(image, np.ndarray):
-            original_image = Image.fromarray(image)
-        else:
-            original_image = image
-            
-        original_width, original_height = original_image.size
-            
-        # 预处理图像
-        image_tensor = self.preprocess_image(image).to(self.device)
-        
-        # 进行预测
-        with torch.no_grad():
-            outputs = self.model(image_tensor)
-            
-        # 第一个(也是唯一的)图像的预测结果
-        boxes = outputs[0]['boxes'].cpu().numpy()
-        scores = outputs[0]['scores'].cpu().numpy()
-        labels = outputs[0]['labels'].cpu().numpy()
-        
-        # 筛选掉低置信度的检测结果
-        keep = scores >= self.score_threshold
-        boxes = boxes[keep]
-        scores = scores[keep]
-        labels = labels[keep]
-        
-        # 构建结果
-        detections = []
-        for box, score, label in zip(boxes, scores, labels):
-            # 标签通常从1开始，而映射从0开始
-            class_id = label - 1
-            
-            if self.is_dict_mapping:
-                class_name = self.class_names.get(str(class_id), f"未知类别{class_id}")
+        logger.info("--- Entering DetectionPredictor.predict ---") # Log entry
+        try:
+            # 保存原始图像尺寸
+            if isinstance(image, str) or isinstance(image, Path):
+                original_image = Image.open(image).convert('RGB')
+            elif isinstance(image, np.ndarray):
+                original_image = Image.fromarray(image)
             else:
-                class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{label}"
+                original_image = image
+                
+            original_width, original_height = original_image.size
+            logger.info(f"Original image size: {original_width}x{original_height}")
+                
+            # 预处理图像
+            image_tensor = self.preprocess_image(image).to(self.device)
+            logger.info(f"Image preprocessed, tensor shape: {image_tensor.shape}")
             
-            # 添加检测结果 - 包含植物类型信息
-            detections.append({
-                'box': box.tolist(),
-                'score': float(score),
-                'class_id': int(label),
-                'class_name': class_name,
-                'plant_type': plant_type  # 添加植物类型信息
-            })
-        
-        result = {
-            'detections': detections,
-            'plant_type': plant_type,  # 添加植物类型到结果中
-            'image_size': {
-                'width': original_width,
-                'height': original_height
+            # --- Model Inference ---
+            self.model.eval() # Ensure eval mode
+            with torch.no_grad():
+                logger.info("Calling model forward pass...")
+                outputs = self.model(image_tensor) # Use direct call
+                logger.info("Model forward pass completed.")
+            # --- End Model Inference ---
+            
+            # 3. 解析结果 - 重点是找到最高置信度的分类结果
+            top_prediction = {"class_name": "未知", "confidence": 0.0, "label_id": -1}
+            detections = [] # 保留原始检测列表
+            
+            # 第一个(也是唯一的)图像的预测结果
+            if outputs and len(outputs) > 0:
+                output = outputs[0]
+                boxes = output.get('boxes', torch.tensor([])).cpu().numpy()
+                scores = output.get('scores', torch.tensor([])).cpu().numpy()
+                labels = output.get('labels', torch.tensor([])).cpu().numpy()
+                
+                logger.info(f"Raw model outputs - scores: {scores.tolist()}, labels: {labels.tolist()}") # Log raw outputs
+                
+                if len(scores) > 0:
+                    # 找到最高分数的索引
+                    top_idx = np.argmax(scores)
+                    top_score = scores[top_idx]
+                    top_label = labels[top_idx]
+                    
+                    # 标签通常从1开始，而映射从0开始 - 检查这里的逻辑
+                    class_id = top_label # 不再减1
+                    
+                    logger.info(f"Highest score prediction - score: {top_score:.4f}, label: {top_label}, used class_id: {class_id}")
+                    
+                    # 检查映射是否可用
+                    logger.info(f"self.is_dict_mapping: {self.is_dict_mapping}, class_names type: {type(self.class_names)}")
+                    logger.info(f"Available class IDs: {list(self.class_names.keys()) if self.is_dict_mapping else 'Not a dict'}")
+                    
+                    if self.is_dict_mapping:
+                        class_name = self.class_names.get(str(class_id), f"未知类别{class_id}")
+                    else:
+                        class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{top_label}"
+                    
+                    logger.info(f"Looked up class name: {class_name}")
+                    
+                    top_prediction = {
+                        "class_name": class_name,
+                        "confidence": float(top_score),
+                        "label_id": int(top_label)
+                    }
+                else:
+                    logger.warning("Model output contained 0 detections/scores.")
+            else:
+                logger.warning("Model did not return any output.")
+            
+            # 筛选掉低置信度的检测结果用于详细显示
+            keep = scores >= self.score_threshold
+            boxes = boxes[keep]
+            scores = scores[keep]
+            labels = labels[keep]
+            
+            # 构建原始检测结果
+            for box, score, label in zip(boxes, scores, labels):
+                # 标签通常从1开始，而映射从0开始 - 检查详细列表中的逻辑
+                class_id = label # 不再减1
+                
+                if self.is_dict_mapping:
+                    class_name = self.class_names.get(str(class_id), f"未知类别{class_id}")
+                else:
+                    class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{label}"
+                
+                # 添加检测结果
+                detections.append({
+                    'box': box.tolist(),
+                    'score': float(score),
+                    'class_id': int(label),
+                    'class_name': class_name,
+                    'plant_type': plant_type  # 添加植物类型信息
+                })
+            
+            # 4. 构建最终返回字典
+            result = {
+                'top_prediction': top_prediction,
+                'detections': detections,
+                'plant_type': plant_type,
+                'image_size': {
+                    'width': original_width,
+                    'height': original_height
+                }
             }
-        }
-        
-        return result
+            
+            logger.info(f"--- Exiting DetectionPredictor.predict, returning: {result} ---")
+            return result
+            
+        except Exception as e_pred:
+            logger.error(f"Error inside DetectionPredictor.predict: {e_pred}", exc_info=True)
+            # Return a default error structure if something goes wrong inside predict
+            return {
+                'top_prediction': {"class_name": "预测内部错误", "confidence": 0.0, "label_id": -1},
+                'detections': [],
+                'plant_type': plant_type,
+                'image_size': {
+                    'width': 0,
+                    'height': 0
+                }
+            }
     
     def _predict_batch(self, batch: torch.Tensor, plant_types: List[str] = None) -> List[Dict[str, Any]]:
         """

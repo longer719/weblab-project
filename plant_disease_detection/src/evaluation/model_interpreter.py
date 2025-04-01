@@ -37,13 +37,17 @@ class GradCAM:
         
         # 如果未指定目标层，使用默认值
         if target_layer is None:
-            target_layer = self.config_manager.get('GRADCAM_TARGET_LAYER', 'backbone.layer4', "model")
+            # 针对DiseaseDetector模型，默认使用detector.backbone.body.layer4
+            target_layer = self.config_manager.get('DETECTOR_GRADCAM_TARGET_LAYER', 'detector.backbone.body.layer4', "model")
+            logging.info(f"使用默认目标层: {target_layer}")
         
         # 获取目标层
         self.target_layer = self._get_layer(model, target_layer)
         if self.target_layer is None:
             logging.error(f"找不到指定的层: {target_layer}")
             raise ValueError(f"找不到指定的层: {target_layer}")
+        else:
+            logging.info(f"成功找到目标层: {target_layer}")
         
         # 初始化官方GradCAM
         if GRADCAM_AVAILABLE:
@@ -65,19 +69,20 @@ class GradCAM:
             for part in parts:
                 curr_layer = getattr(curr_layer, part)
             
+            logging.info(f"成功找到层 '{layer_name}' 的类型: {type(curr_layer).__name__}")
             return curr_layer
-        except AttributeError:
+        except AttributeError as e:
             # 如果找不到指定层，尝试自动查找最后一个卷积层
-            logging.warning(f"找不到指定的层 '{layer_name}'，尝试自动查找最后一个卷积层...")
+            logging.warning(f"找不到指定的层 '{layer_name}'，错误: {str(e)}，尝试自动查找最后一个卷积层...")
             return self._find_last_conv_layer(model)
     
     def _find_last_conv_layer(self, model: nn.Module) -> Optional[nn.Module]:
         """尝试找到模型中最后一个卷积层"""
         last_conv = None
-        for module in reversed(list(model.modules())):
+        for name, module in model.named_modules():
             if isinstance(module, nn.Conv2d):
                 last_conv = module
-                break
+                logging.info(f"找到卷积层: {name}")
         
         if last_conv is None:
             logging.error("无法自动找到卷积层")
@@ -86,13 +91,13 @@ class GradCAM:
         logging.info("自动选择了最后一个卷积层作为目标层")
         return last_conv
     
-    def generate_heatmap(self, image: torch.Tensor, class_idx: int = None) -> np.ndarray:
+    def generate_heatmap(self, image: torch.Tensor, class_idx: int) -> np.ndarray:
         """
         生成热力图
         
         Args:
             image: 输入图像张量 [1, C, H, W]
-            class_idx: 目标类别索引，None则使用预测概率最高的类别
+            class_idx: 目标类别索引
             
         Returns:
             热力图数组 [H, W]，值范围0-1
@@ -109,19 +114,23 @@ class GradCAM:
         device = next(self.model.parameters()).device
         image = image.to(device)
         
-        # 定义目标类别
-        if class_idx is not None:
-            targets = [ClassifierOutputTarget(class_idx)]
-        else:
-            # 让库自动选择最高概率类别
-            targets = None
+        # 定义目标类别 - 确保class_idx不为None
+        if class_idx is None:
+            logging.error("必须提供目标类别索引 (class_idx) 才能生成热力图")
+            return np.zeros((image.shape[2], image.shape[3]), dtype=np.float32)
+            
+        targets = [ClassifierOutputTarget(class_idx)]
         
         # 生成CAM
         try:
+            logging.info(f"正在为类别索引 {class_idx} 生成热力图...")
             grayscale_cam = self.cam_executor(input_tensor=image, targets=targets)
+            logging.info(f"热力图生成成功，形状: {grayscale_cam.shape}")
             return grayscale_cam[0]  # 返回第一个批次的CAM
         except Exception as e:
             logging.error(f"生成热力图失败: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
             return np.zeros((image.shape[2], image.shape[3]), dtype=np.float32)
 
 
@@ -137,39 +146,42 @@ class ModelInterpreter:
         self.model.eval()
         
     def explain_prediction(self, image: Union[np.ndarray, torch.Tensor, str, Path], 
-                          class_idx: Optional[int] = None,
+                          class_idx: int,  # 现在是必需参数
                           target_layer: Optional[str] = None,
                           output_path: Optional[str] = None,
-                          class_names: Optional[List[str]] = None) -> np.ndarray:
+                          class_names: Optional[Dict[str, str]] = None) -> np.ndarray:
         """
         解释预测结果，生成可视化解释
         
         Args:
             image: 输入图像(numpy数组、Torch张量或图像路径)
-            class_idx: 目标类别索引，None则使用预测概率最高的类别
+            class_idx: 目标类别索引 (必需参数，不再有默认值)
             target_layer: 要可视化的目标层，None则使用配置中的默认值
-            output_path: 输出文件路径，None则仅显示不保存
-            class_names: 类别名称列表，用于显示
+            output_path: 输出文件路径，None则仅返回可视化数组不保存
+            class_names: 类别名称映射 (ID -> 名称)
             
         Returns:
               叠加了热力图的可视化图像(numpy数组)
         """
+        # 检查class_idx是否有效
+        if class_idx is None:
+            logging.error("必须提供目标类别索引 (class_idx) 才能生成 Grad-CAM。")
+            # 如果没有类别索引，则无法生成热图，返回None
+            return None
+            
         # 转换输入图像为标准格式(Tensor和numpy)
         img_tensor, rgb_img = self._prepare_image(image)
         
-        # 如果没有指定类别，使用模型预测的最高概率类别
-        if class_idx is None:
-            class_idx = self._predict_class(img_tensor)
-            if class_idx is None:  # 预测失败
-                return rgb_img
-        
         # 创建GradCAM实例
         try:
+            logging.info(f"为类别 {class_idx} 创建GradCAM热力图...")
             grad_cam = GradCAM(self.model, target_layer)
             # 生成热力图
             heatmap = grad_cam.generate_heatmap(img_tensor, class_idx)
         except Exception as e:
             logging.error(f"生成GradCAM热力图失败: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
             return rgb_img
         
         # 叠加热力图到原始图像
@@ -180,7 +192,11 @@ class ModelInterpreter:
         else:
             visualization = self._apply_heatmap(rgb_img, heatmap, alpha=heatmap_alpha)
         
-        # 创建可视化图像
+        # 如果output_path为None，则直接返回叠加后的可视化图像
+        if output_path is None:
+            return visualization
+        
+        # 否则，创建完整的可视化图像并保存
         plt.figure(figsize=(12, 5))
         
         # 显示原始图像
@@ -214,18 +230,13 @@ class ModelInterpreter:
             title += f"\n类别索引: {class_idx}"
             
         plt.title(title)
-        
         plt.axis('off')
-        
         plt.tight_layout()
         
-        # 保存或显示结果
-        if output_path:
-            plt.savefig(output_path, bbox_inches='tight', dpi=300)
-            plt.close()
-            logging.info(f"已将可视化结果保存到: {output_path}")
-        else:
-            plt.show()
+        # 保存结果
+        plt.savefig(output_path, bbox_inches='tight', dpi=300)
+        plt.close()
+        logging.info(f"已将可视化结果保存到: {output_path}")
         
         return visualization
         
@@ -287,49 +298,15 @@ class ModelInterpreter:
                 
             rgb_img = np.clip(rgb_img, 0, 1)
         
+        elif isinstance(image, Image.Image):
+            # 处理PIL图像
+            rgb_img = np.array(image) / 255.0
+            img_tensor = transforms.ToTensor()(image).unsqueeze(0)
+        
         else:
             raise TypeError(f"不支持的图像类型: {type(image)}")
         
         return img_tensor, rgb_img
-        
-    def _predict_class(self, img_tensor: torch.Tensor) -> Optional[int]:
-        """使用模型预测类别索引"""
-        try:
-            # 确保张量在正确的设备上
-            img_tensor = img_tensor.to(self.device)
-            
-            # 获取模型的归一化参数
-            mean = self.config_manager.get('mean', [0.485, 0.456, 0.406], "data")
-            std = self.config_manager.get('std', [0.229, 0.224, 0.225], "data")
-            
-            # 应用归一化（如果尚未应用）
-            normalized = img_tensor.clone()
-            if normalized.min() >= 0 and normalized.max() <= 1:
-                # 图像未归一化，应用归一化
-                for i in range(3):
-                    normalized[:, i] = (normalized[:, i] - mean[i]) / std[i]
-            
-            # 进行预测
-            with torch.no_grad():
-                outputs = self.model(normalized)
-                
-            # 获取预测的类别
-            if isinstance(outputs, tuple):  # 某些模型可能返回多个输出
-                outputs = outputs[0]
-                
-            # 应用softmax获取概率
-            probs = F.softmax(outputs, dim=1)
-            
-            # 获取最高概率的类别
-            _, pred_class = torch.max(probs, 1)
-            class_idx = pred_class.item()
-            
-            logging.info(f"预测的类别索引: {class_idx}, 概率: {probs[0][class_idx].item():.4f}")
-            return class_idx
-            
-        except Exception as e:
-            logging.error(f"类别预测失败: {str(e)}")
-            return None
     
     def _apply_heatmap(self, img: np.ndarray, heatmap: np.ndarray, 
                        alpha: float = 0.6, colormap: int = cv2.COLORMAP_JET) -> np.ndarray:

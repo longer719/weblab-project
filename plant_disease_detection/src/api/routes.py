@@ -6,6 +6,7 @@ API路由模块
 import os
 import logging
 import time
+import io
 from typing import Dict, Any, List
 from pathlib import Path
 import numpy as np
@@ -17,6 +18,8 @@ from src.utils.image_utils import preprocess_image
 from src.utils.disease_treatments import DiseaseTreatmentDatabase
 # 添加映射服务导入
 from src.utils.mapping_service import MappingService
+from src.utils.config_manager import ConfigManager
+from src.inference.predictor import DetectionPredictor
 
 # 创建蓝图
 api_bp = Blueprint('api', __name__)
@@ -363,7 +366,7 @@ def classify_plant():
 # 修改检测API以更好地利用植物类型信息
 @api_bp.route('/detect', methods=['POST'])
 def detect_diseases():
-    """病害检测接口"""
+    """病害检测接口 - 修改为侧重分类结果"""
     if 'image' not in request.files:
         return jsonify({"error": "未找到图像文件"}), 400
     
@@ -387,30 +390,77 @@ def detect_diseases():
     logger.info(f"植物类型参数: {plant_type}")
     
     try:
-        # 创建预测器
-        predictor = create_predictor()
+        # 转换图像为PIL格式供DetectionPredictor使用
+        image_pil = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         
+        # --- 修改: 直接创建并使用DetectionPredictor ---
+        if not hasattr(current_app, 'detector') or current_app.detector is None:
+             logger.error("检测模型未加载！")
+             return jsonify({"error": "检测模型不可用"}), 500
+        if not hasattr(current_app, 'class_id_to_name_map'):
+             logger.error("统一类别映射未加载！")
+             return jsonify({"error": "系统配置错误"}), 500
+
+        config_manager = ConfigManager()
+        score_thresh = config_manager.get('confidence_threshold', 0.3, 'model')
+
+        # 直接创建DetectionPredictor实例
+        predictor = DetectionPredictor(
+            current_app.detector,
+            current_app.class_id_to_name_map, 
+            score_threshold=score_thresh
+        )
+
         # 使用映射服务将前端植物名称转换为模型可用格式
         model_plant_type = mapping_service.extract_plant_type_from_class(plant_type)
         logger.info(f"使用植物类型进行检测: {plant_type} (映射为: {model_plant_type})")
-        
-        # 执行检测
-        results = predictor.detect(image_bytes, plant_type=model_plant_type)
 
+        logger.info("Calling DetectionPredictor.predict...")
+        results = predictor.predict(image_pil, plant_type=model_plant_type)
+        logger.info(f"Received results from DetectionPredictor.predict: {results}")
+        # --- 结束修改 ---
+
+        # 提取最高置信度的预测结果
+        top_prediction = results.get("top_prediction", {})
+        logger.info(f"Extracted top_prediction: {top_prediction}")
+        
+        class_name = top_prediction.get("class_name", "未知")
+        confidence = top_prediction.get("confidence", 0.0)
+        logger.info(f"提取的class_name: {class_name}, confidence: {confidence}")
+        
+        # 提取植物类型和病害名称
+        plant_type_from_pred = "未知"
+        disease_name_from_pred = "未知"
+        if (class_name != "未知" and "-" in class_name):
+            parts = class_name.split('-', 1)
+            plant_type_from_pred = parts[0]
+            disease_name_from_pred = parts[1]
+            logger.info(f"从class_name拆分: 植物={plant_type_from_pred}, 病害={disease_name_from_pred}")
+        
+        # 获取治疗信息
+        treatment_info = {}
+        if disease_name_from_pred != "未知" and disease_name_from_pred.lower() != "健康":
+            treatment_info = treatment_db.get_treatment(plant_type_from_pred, disease_name_from_pred)
+            logger.info(f"获取到治疗信息: {bool(treatment_info)}")
+        
+        # 构建最终响应
+        final_response = {
+            "class_name": class_name,
+            "confidence": confidence,
+            "plant_type": plant_type_from_pred,
+            "disease_name": disease_name_from_pred,
+            "treatment_info": treatment_info if not treatment_info.get('error') else {},
+            "detection_mode": "image_level_classification",
+            "detections": results.get("detections", []),
+            "top_prediction": top_prediction  # 确保包含完整的top_prediction
+        }
+        
         # 添加植物类型信息到结果中
-        results['plant_type'] = plant_type
+        final_response['plant_type'] = plant_type
         
-        # 移除过滤逻辑，直接返回所有检测结果
-        # 可以添加置信度排序，优先展示高置信度结果
-        if results["detections"]:
-            results["detections"].sort(key=lambda x: x["score"], reverse=True)
-        
-        # 可以保留日志但不过滤
-        for detection in results["detections"]:
-            disease_name = detection["class_name"]
-            logger.info(f"检测到: {disease_name}, 置信度: {detection['score']}")
-        
-        return jsonify(results)
+        logger.info(f"Final response to be sent: {final_response}")
+        logger.info(f"检测完成: {final_response['class_name']}, 置信度: {final_response['confidence']:.4f}")
+        return jsonify(final_response)
     
     except Exception as e:
         logger.error(f"检测过程中出错: {e}")
@@ -514,3 +564,101 @@ def get_plant_info():
     except Exception as e:
         logger.error(f"获取植物信息时出错: {e}")
         return jsonify({"error": f"获取植物信息时出错: {e}"}), 500
+
+# --- 新增: Grad-CAM 解释路由 ---
+@api_bp.route('/explain_detection', methods=['POST'])
+def explain_detection_route():
+    """为检测模型的分类结果生成Grad-CAM可视化解释"""
+    if 'image' not in request.files:
+        return jsonify({"error": "未找到图像文件"}), 400
+
+    file = request.files['image']
+    try:
+        image_bytes = file.read()
+        image_pil = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+    except Exception as e:
+        logger.error(f"解释请求：图像加载失败: {e}")
+        return jsonify({"error": f"无法加载图像: {str(e)}"}), 400
+
+    # 检查模型和映射是否加载
+    if not hasattr(current_app, 'detector') or current_app.detector is None:
+         return jsonify({"error": "检测模型不可用"}), 500
+    if not hasattr(current_app, 'class_id_to_name_map'):
+         return jsonify({"error": "系统配置错误"}), 500
+
+    try:
+        # 1. 先获取模型的预测结果 (主要是类别 ID)
+        config_manager = ConfigManager()
+        score_thresh = config_manager.get('confidence_threshold', 0.3, 'model')
+        predictor = DetectionPredictor(current_app.detector, current_app.class_id_to_name_map, score_thresh)
+        pred_results = predictor.predict(image_pil)
+        target_class_id = pred_results.get("top_prediction", {}).get("label_id", None)
+
+        if target_class_id is None or target_class_id == -1:
+            return jsonify({"error": "模型未能对此图像进行有效预测，无法生成解释"}), 400
+
+        # 2. 创建 ModelInterpreter 实例
+        from src.evaluation.model_interpreter import ModelInterpreter
+        interpreter = ModelInterpreter(current_app.detector)
+
+        # 3. 确定 Grad-CAM 目标层 - 可能需要调整为实际模型结构
+        # 尝试几个可能的路径格式
+        possible_target_layers = [
+            'backbone.body.layer4',  # 直接模型结构
+            'detector.backbone.body.layer4',  # 封装模型结构
+            'model.backbone.body.layer4'  # 另一种可能的封装
+        ]
+        
+        target_layer = None
+        for layer_path in possible_target_layers:
+            try:
+                # 尝试用getattr递归访问各层来验证路径有效性
+                parts = layer_path.split('.')
+                current = current_app.detector
+                for part in parts:
+                    if not hasattr(current, part):
+                        break
+                    current = getattr(current, part)
+                else:
+                    # 如果没有break，说明路径有效
+                    target_layer = layer_path
+                    break
+            except:
+                continue
+        
+        # 如果找不到有效层，使用默认值
+        if not target_layer:
+            target_layer = config_manager.get('DETECTOR_GRADCAM_TARGET_LAYER', 'backbone.body.layer4', "model")
+            logger.warning(f"无法验证目标层路径，使用配置默认值: {target_layer}")
+
+        # 4. 生成 Grad-CAM 可视化 (不保存文件，返回 numpy 数组)
+        visualization_np = interpreter.explain_prediction(
+            image=image_pil, # 直接传递 PIL Image
+            class_idx=target_class_id,
+            target_layer=target_layer,
+            output_path=None, # 设置为 None 以获取数组
+            class_names=current_app.class_id_to_name_map # 传递类别映射
+        )
+
+        # 5. 将 numpy 数组转换为 Base64 编码的图像数据
+        import base64
+        from io import BytesIO
+
+        # 将 numpy 数组 (0-255, RGB) 转换为 PIL Image
+        vis_img_pil = Image.fromarray(visualization_np)
+        buffered = BytesIO()
+        vis_img_pil.save(buffered, format="PNG") # 保存为 PNG 格式
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        data_url = f"data:image/png;base64,{img_str}"
+
+        # 6. 返回包含可视化数据的 JSON
+        response_data = {
+            "predicted_class_id": target_class_id,
+            "predicted_class_name": pred_results.get("top_prediction", {}).get("class_name", "未知"),
+            "gradcam_image": data_url # 返回 Base64 Data URL
+        }
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"生成Grad-CAM时出错: {e}", exc_info=True)
+        return jsonify({"error": f"生成解释时出错: {str(e)}"}), 500

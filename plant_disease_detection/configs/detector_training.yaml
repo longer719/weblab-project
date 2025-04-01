@@ -32,28 +32,28 @@ model:
 
 # 训练配置 - 针对RTX 4090D优化
 train:
-  epochs: 50            # 目标检测通常收敛较快
-  lr: 0.0001            # 降低学习率以避免loss=nan问题
+  epochs: 50            
+  lr: 0.0001            
   optimizer: "AdamW"
-  scheduler: "CosineAnnealingLR"  # 保持现有的设置
-  scheduler_params:              # <-- 新增调度器参数子字典
-    eta_min: 0.0000005          # <-- 设置最小学习率(约为lr的1/1000)
-  weight_decay: 0.0005  # 检测任务使用较小的权重衰减值
-  mixed_precision: true  # 使用混合精度加速训练
-  warmup_epochs: 3       # 新增: 第一阶段只训练头部的轮数
-  backbone_lr: 0.00005   # 新增: 第二阶段backbone的学习率(显著小于头部)
-  mixup_alpha: 0.0       # 新增: 不为检测器使用MixUp
-  cutmix_alpha: 1.0      # 新增: 启用CutMix (1.0是标准值)
-  mixcut_prob: 0.5       # 新增: 设置应用CutMix的概率为50%
-  grad_accumulation_steps: 2  # 梯度累积，相当于加倍批次大小
+  scheduler: "CosineAnnealingLR"  
+  scheduler_params:             
+    eta_min: 0.0000005         
+  weight_decay: 0.0005  
+  mixed_precision: true  
+  warmup_epochs: 3       
+  backbone_lr: 0.00005   
+  mixup_alpha: 0.0       
+  cutmix_alpha: 1.0      # 保留CutMix以增强泛化性
+  mixcut_prob: 0.5       
+  grad_accumulation_steps: 2  
   seed: 42
   save_interval: 5
   vis_samples: 10
   early_stopping:
-    patience: 20
+    patience: 10         # 可根据需要调整
     delta: 0.001
-    mode: 'max'  # 对于mAP，使用'max'模式
-    monitor: 'mAP'  # 使用mAP作为监控指标
+    mode: 'max'          # 修改为max，因为accuracy/f1越高越好
+    monitor: 'accuracy'  # 修改为accuracy，监控分类准确率
   device: "cuda"
 
 # 实验命名

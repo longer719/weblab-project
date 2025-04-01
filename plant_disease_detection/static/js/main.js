@@ -596,227 +596,110 @@
      * 显示检测结果
      */
     function displayDetectionResults(results, container) {
-        // 检查是否有任何检测结果
-        if (!results.detections || results.detections.length === 0) {
-            const emptyResult = document.createElement('div');
-            emptyResult.className = 'empty-state';
-            emptyResult.innerHTML = `
-                <i class="fas fa-leaf"></i>
-                <h4>未检测到病害</h4>
-                <p>这棵植物看起来很健康，没有检测到任何病害症状。</p>
-            `;
-            container.appendChild(emptyResult);
-            return;
-        }
-        
-        // 创建检测结果卡片
+        // 清除之前的结果
+        container.innerHTML = '';
+
+        // 创建结果标题
+        const resultTitle = document.createElement('h3');
+        resultTitle.textContent = '病害识别结果'; // 更改标题，更符合分类任务
+        container.appendChild(resultTitle);
+
+        // --- 修改: 结果卡片内容 ---
         const resultCard = document.createElement('div');
-        resultCard.className = 'result-card detection-result';
-        
-        // 获取严重程度评估
-        const severityLevel = results.severity_assessment ? results.severity_assessment.level : 'unknown';
-        const severityDescription = results.severity_assessment ? results.severity_assessment.description : '无法评估';
-        
-        // 计算严重程度对应的类名
-        let severityClass = 'unknown';
-        switch (severityLevel) {
-            case 'healthy': severityClass = 'healthy'; break;
-            case 'mild': severityClass = 'mild'; break;
-            case 'moderate': severityClass = 'moderate'; break;
-            case 'severe': severityClass = 'severe'; break;
-        }
-        
-        // 构建疾病列表HTML
-        let diseaseListHTML = '';
-        const treatments = [];
-        
-        results.detections.forEach(detection => {
-            // 从完整的"植物-病害"格式中提取病害名称部分
-            let diseaseName = detection.class_name;
-            let displayName = diseaseName;
-            
-            if (diseaseName.includes('-')) {
-                const parts = diseaseName.split('-');
-                // 只显示病害部分
-                displayName = parts[1] || parts[0]; // 如果分割后没有第二部分，使用第一部分
-            }
-            
-            // 添加到疾病列表
-            diseaseListHTML += `
-                <li>
-                    <span class="disease-name">${displayName}</span>
-                    <span class="severity-badge ${detection.severity || 'unknown'}">${detection.severity || '未知'}</span>
-                    <span class="disease-confidence">${(detection.score * 100).toFixed(1)}%</span>
-                </li>
-            `;
-            
-            // 收集治疗信息
-            if (detection.treatment_info) {
-                treatments.push(detection.treatment_info);
-            }
-        });
-        
-        // 创建检测结果HTML
+        resultCard.className = 'result-card detection-as-classification-result'; // 可以用新类名
+
+        // 从 results 中提取关键分类信息 (基于 routes.py 返回的新格式)
+        const className = results.class_name || "无法识别";
+        const confidence = results.confidence || 0.0;
+        const plantType = results.plant_type || "未知植物";
+        const diseaseName = results.disease_name || "未知病害";
+        const treatmentInfo = results.treatment_info || {};
+        const labelId = results.top_prediction ? results.top_prediction.label_id : -1; // 获取类别 ID
+
+        let severityClass = 'unknown'; // 可以根据置信度估算
+        if (confidence > 0.8) severityClass = 'severe';
+        else if (confidence > 0.6) severityClass = 'moderate';
+        else if (confidence > 0.4) severityClass = 'mild';
+
         resultCard.innerHTML = `
             <div class="result-header">
-                <h4>病害检测结果</h4>
-                <div class="detection-summary">
-                    <span>检测到 ${results.detections.length} 个病害区域</span>
-                    <span class="severity-badge ${severityClass}">严重程度: ${severityLevel === 'unknown' ? '未知' : severityLevel}</span>
+                <h4>${className}</h4>
+                <div class="confidence">
+                    <span class="confidence-value">${(confidence * 100).toFixed(2)}%</span>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
+                    </div>
                 </div>
+                <span class="severity-badge ${severityClass}">置信度评估: ${severityClass}</span>
             </div>
             <div class="result-details">
-                <div class="disease-summary">
-                    <h5>病害摘要：</h5>
-                    <p>${severityDescription}</p>
-                    <ul class="disease-list">
-                        ${diseaseListHTML}
-                    </ul>
+                <p>识别来源: 检测器模型 (图像级分类)</p>
+                ${Object.keys(treatmentInfo).length > 0 && !treatmentInfo.error ? `
+                    <div class="treatment-summary">
+                        <h5>初步治疗建议:</h5>
+                        <p>${treatmentInfo.treatments ? treatmentInfo.treatments[0] : '暂无建议'}</p>
+                        <button class="action-button secondary view-treatment-details" data-plant="${plantType}" data-disease="${diseaseName}">
+                            <i class="fas fa-notes-medical"></i> 查看详细治疗方案
+                        </button>
+                    </div>
+                ` : diseaseName.toLowerCase() !== '健康' ? `<p>未找到针对"${diseaseName}"的特定治疗建议。</p>` : '<p>植物看起来很健康！</p>'}
+
+                <!-- 新增: Grad-CAM 相关按钮 -->
+                ${labelId !== -1 ? `
+                <div class="gradcam-actions">
+                    <button class="action-button tertiary explain-button" data-label-id="${labelId}">
+                        <i class="fas fa-eye"></i> 查看模型关注区域 (Grad-CAM)
+                    </button>
+                    <div class="gradcam-result-container" style="display: none; margin-top: 15px;">
+                         <img src="" alt="Grad-CAM Visualization" class="gradcam-image" style="max-width: 100%; border: 1px solid #ddd;"/>
+                         <p class="gradcam-loading" style="display: none;">正在生成解释...</p>
+                         <p class="gradcam-error" style="color: red; display: none;"></p>
+                    </div>
                 </div>
+                ` : ''}
             </div>
         `;
-        
-        // 添加到容器
         container.appendChild(resultCard);
-        
-        // 如果有治疗建议，添加它们
-        if (treatments.length > 0) {
-            console.log("发现治疗建议:", treatments.length, "项");
-            processTreatmentRecommendations(treatments, container);
-            showTreatmentTip(container);
-        } else {
-            console.log("未找到任何治疗建议信息");
-        }
-        
-        // 创建检测图像的可视化
-        const previewImage = document.querySelector('.preview-image');
-        if (previewImage && typeof PlantVis !== 'undefined') {
-            // 确保可视化容器存在
-            let visContainer = document.getElementById('visualization-container');
-            if (!visContainer) {
-                // 如果不存在，创建一个新容器
-                visContainer = document.createElement('div');
-                visContainer.id = 'visualization-container';
-                visContainer.className = 'visualization-container';
-                container.appendChild(visContainer);
-            }
-            
-            // 确保容器可见
-            visContainer.style.display = 'block';
-            
-            // 格式化检测数据以适应PlantVis
-            const formattedDetections = results.detections.map(det => ({
-                box: [det.bbox.x, det.bbox.y, det.bbox.x + det.bbox.width, det.bbox.y + det.bbox.height],
-                score: det.score,
-                class_name: det.class_name,
-                severity: det.severity  // 添加严重程度
-            }));
-            
-            // 渲染可视化
-            try {
-                console.log('即将渲染可视化...');
-                // 确保预览图像已完全加载
-                if (!previewImage.complete) {
-                    previewImage.onload = function() {
-                        renderVisualization(previewImage);
-                    };
-                } else {
-                    renderVisualization(previewImage);
-                }
-                
-                function renderVisualization(image) {
-                    const canvas = PlantVis.renderDetectionBoxes(image, formattedDetections, {
-                        showLabels: true,
-                        showScores: true,
-                        scoreThreshold: 0.5
-                    });
-                    console.log('可视化渲染完成:', canvas);
-                    
-                    // 显示可视化，并添加交互控件
-                    PlantVis.displayVisualization(visContainer, canvas, {
-                        allowThresholdChange: true,
-                        enableThreshold: true,
-                        initialThreshold: 0.5,
-                        enableModeSwitch: true,
-                        visModes: [
-                            { label: '边界框', value: 'boxes' },
-                            { label: '热图', value: 'heatmap' },
-                            { label: '混合', value: 'blend' },
-                            { label: 'GradCAM', value: 'gradcam' }
-                        ],
-                        currentMode: 'boxes',
-                        showControls: true,
-                        allowDownload: true
-                    });
-                }
-            } catch (err) {
-                console.error('渲染可视化时出错:', err);
-                // 显示错误信息到容器中
-                visContainer.innerHTML = `
-                    <div class="visualization-error">
-                        <p><i class="fas fa-exclamation-triangle"></i> 无法渲染可视化结果</p>
-                        <p class="error-details">${err.message}</p>
-                    </div>
-                `;
-            }
-        }
-        
-        // 在结果卡片中添加查看病害库按钮
-        const diseaseSummarySection = document.createElement('div');
-        diseaseSummarySection.className = 'disease-library-link';
-        diseaseSummarySection.innerHTML = `
-            <button class="action-button secondary view-all-diseases">
-                <i class="fas fa-book-medical"></i> 查看${appState.detectedPlantType}病害治疗库
-            </button>
-        `;
-        
-        // 在合适的位置添加这个按钮（在结果卡片的底部）
-        resultCard.appendChild(diseaseSummarySection);
-        
-        // 添加按钮事件
-        const viewAllDiseases = resultCard.querySelector('.view-all-diseases');
-        if (viewAllDiseases) {
-            viewAllDiseases.addEventListener('click', () => {
-                // 找出主要检测到的病害名称
-                let mainDiseaseName = null;
-                if (results.detections && results.detections.length > 0) {
-                    // 按置信度排序，获取最高置信度的病害
-                    const sortedDetections = [...results.detections].sort((a, b) => b.score - a.score);
-                    if (sortedDetections[0]) {
-                        // 提取病害名称部分（如果是"植物-病害"格式）
-                        const fullName = sortedDetections[0].class_name;
-                        if (fullName.includes('-')) {
-                            mainDiseaseName = fullName.split('-')[1].trim();
-                        } else {
-                            mainDiseaseName = fullName;
-                        }
-                    }
-                }
-                
-                // 显示病害治疗库，传递检测到的主要病害名称
-                showPlantDiseaseLibrary(appState.detectedPlantType, mainDiseaseName);
+        // --- 结束修改结果卡片 ---
+
+        // --- 移除或注释掉旧的可视化调用 ---
+        // const previewImage = document.querySelector('.preview-image');
+        // if (previewImage && typeof PlantVis !== 'undefined') {
+        //    // ... 旧的调用 PlantVis.renderDetectionBoxes 等代码 ...
+        //    // PlantVis.displayVisualization(...);
+        // }
+        // --- 结束移除 ---
+
+        // --- 添加新的事件监听 ---
+        // 查看详细治疗方案按钮
+        const treatmentBtn = resultCard.querySelector('.view-treatment-details');
+        if (treatmentBtn) {
+            treatmentBtn.addEventListener('click', function() {
+                const plant = this.dataset.plant;
+                const disease = this.dataset.disease;
+                fetch(`/api/treatment?plant=${encodeURIComponent(plant)}&disease=${encodeURIComponent(disease)}`)
+                    .then(res => res.json())
+                    .then(treatmentData => {
+                        // 假设你有一个函数 showDetailedTreatment 来显示模态框
+                        showDetailedTreatment(treatmentData);
+                    })
+                    .catch(err => console.error('获取治疗信息失败:', err));
             });
         }
-        
-        // 为疾病列表中的每个项目添加点击事件
-        setTimeout(() => {
-            const diseaseItems = container.querySelectorAll('.disease-list li');
-            diseaseItems.forEach(item => {
-                item.style.cursor = 'pointer';
-                item.addEventListener('click', function() {
-                    const diseaseName = this.querySelector('.disease-name').textContent;
-                    // 请求该疾病的治疗信息
-                    fetch(`/api/treatment?plant=${encodeURIComponent(appState.detectedPlantType)}&disease=${encodeURIComponent(diseaseName)}`)
-                        .then(res => res.json())
-                        .then(treatmentData => {
-                            showDetailedTreatment(treatmentData);
-                        })
-                        .catch(err => {
-                            console.error('获取治疗信息失败:', err);
-                        });
-                });
-            });
-        }, 100);
+
+        // Grad-CAM 解释按钮
+        const explainBtn = resultCard.querySelector('.explain-button');
+        if (explainBtn) {
+            explainBtn.addEventListener('click', handleExplainRequest); // 调用新的处理函数
+        }
+        // --- 结束添加 ---
+
+        // (保留) 添加导出和清除按钮的逻辑
+        addResultActions(container);
+
+        // 显示结果容器 (保留)
+        container.style.display = 'block';
+        container.scrollIntoView({ behavior: 'smooth' });
     }
 
     /**
@@ -2021,5 +1904,73 @@
     window.showPlantInfo = showPlantInfo;
     window.showPlantDiseaseLibrary = showPlantDiseaseLibrary;
     window.showDetailedTreatment = showDetailedTreatment;
+
+    /**
+     * 处理 Grad-CAM 解释请求
+     */
+    function handleExplainRequest(event) {
+        if (!appState.uploadedImage) {
+            updateStatusMessage('请先上传图像', 'warning');
+            return;
+        }
+
+        const button = event.currentTarget;  // 使用currentTarget确保我们获取到带有事件监听器的元素
+        const resultContainer = button.closest('.gradcam-actions');
+        const gradcamImageContainer = resultContainer.querySelector('.gradcam-result-container');
+        const gradcamImage = gradcamImageContainer.querySelector('.gradcam-image');
+        const loadingIndicator = gradcamImageContainer.querySelector('.gradcam-loading');
+        const errorDisplay = gradcamImageContainer.querySelector('.gradcam-error');
+
+        // 隐藏之前的错误/图像，显示加载中
+        errorDisplay.style.display = 'none';
+        gradcamImage.style.display = 'none';
+        loadingIndicator.style.display = 'block';
+        gradcamImageContainer.style.display = 'block'; // 显示容器
+        button.disabled = true; // 禁用按钮防止重复点击
+
+        // 准备表单数据
+        const formData = new FormData();
+        formData.append('image', appState.uploadedImage);
+
+        // 调用新的 API 端点
+        fetch('/api/explain_detection', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingIndicator.style.display = 'none'; // 隐藏加载中
+            button.disabled = false; // 恢复按钮
+
+            if (data.error) {
+                console.error('Grad-CAM 生成失败:', data.error);
+                errorDisplay.textContent = `无法生成解释: ${data.error}`;
+                errorDisplay.style.display = 'block';
+            } else if (data.gradcam_image) {
+                // 显示 Grad-CAM 图像
+                gradcamImage.src = data.gradcam_image; // 设置 Base64 Data URL
+                gradcamImage.style.display = 'block';
+                // 可以考虑添加标题或说明
+                const title = gradcamImageContainer.querySelector('h5');
+                if (!title) {
+                    const newTitle = document.createElement('h5');
+                    newTitle.textContent = `关注区域 (预测: ${data.predicted_class_name})`;
+                    gradcamImageContainer.insertBefore(newTitle, gradcamImage);
+                } else {
+                    title.textContent = `关注区域 (预测: ${data.predicted_class_name})`;
+                }
+            } else {
+                errorDisplay.textContent = '未能获取解释图像。';
+                errorDisplay.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('调用 Grad-CAM API 出错:', error);
+            loadingIndicator.style.display = 'none';
+            errorDisplay.textContent = '请求解释时出错，请检查网络或稍后再试。';
+            errorDisplay.style.display = 'block';
+            button.disabled = false;
+        });
+    }
 
 })();
