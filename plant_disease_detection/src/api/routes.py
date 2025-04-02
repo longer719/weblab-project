@@ -437,9 +437,20 @@ def detect_diseases():
             disease_name_from_pred = parts[1]
             logger.info(f"从class_name拆分: 植物={plant_type_from_pred}, 病害={disease_name_from_pred}")
         
-        # 获取治疗信息
+        # 构建最终响应前，获取治疗信息
         treatment_info = {}
-        if disease_name_from_pred != "未知" and disease_name_from_pred.lower() != "健康":
+        healthy_info = {}  # 新增：初始化健康护理信息字典
+        
+        if disease_name_from_pred.lower() == "健康":
+            # 新增：获取健康植物的护理建议
+            healthy_info = treatment_db.get_treatment(plant_type_from_pred, "健康") 
+            if healthy_info.get('error'):
+                logger.warning(f"未能获取{plant_type_from_pred}的健康护理信息: {healthy_info.get('error')}")
+                healthy_info = {}  # 如果获取失败，设为空字典
+            else:
+                logger.info(f"获取到{plant_type_from_pred}的健康护理建议")
+        elif disease_name_from_pred != "未知":
+            # 原有逻辑：获取病害治疗信息
             treatment_info = treatment_db.get_treatment(plant_type_from_pred, disease_name_from_pred)
             logger.info(f"获取到治疗信息: {bool(treatment_info)}")
         
@@ -450,6 +461,7 @@ def detect_diseases():
             "plant_type": plant_type_from_pred,
             "disease_name": disease_name_from_pred,
             "treatment_info": treatment_info if not treatment_info.get('error') else {},
+            "healthy_info": healthy_info if not healthy_info.get('error') else {},  # 新增：添加健康信息
             "detection_mode": "image_level_classification",
             "detections": results.get("detections", []),
             "top_prediction": top_prediction  # 确保包含完整的top_prediction

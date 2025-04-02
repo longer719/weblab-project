@@ -601,26 +601,76 @@
 
         // 创建结果标题
         const resultTitle = document.createElement('h3');
-        resultTitle.textContent = '病害识别结果'; // 更改标题，更符合分类任务
+        resultTitle.textContent = '病害识别结果'; 
         container.appendChild(resultTitle);
 
-        // --- 修改: 结果卡片内容 ---
+        // 创建结果卡片
         const resultCard = document.createElement('div');
-        resultCard.className = 'result-card detection-as-classification-result'; // 可以用新类名
+        resultCard.className = 'result-card detection-as-classification-result';
 
-        // 从 results 中提取关键分类信息 (基于 routes.py 返回的新格式)
+        // 从 results 中提取关键信息
         const className = results.class_name || "无法识别";
         const confidence = results.confidence || 0.0;
         const plantType = results.plant_type || "未知植物";
         const diseaseName = results.disease_name || "未知病害";
         const treatmentInfo = results.treatment_info || {};
-        const labelId = results.top_prediction ? results.top_prediction.label_id : -1; // 获取类别 ID
+        const healthyInfo = results.healthy_info || {};  // 新增：获取健康信息
+        const labelId = results.top_prediction ? results.top_prediction.label_id : -1;
 
-        let severityClass = 'unknown'; // 可以根据置信度估算
+        // 确定严重程度样式
+        let severityClass = 'unknown';
         if (confidence > 0.8) severityClass = 'severe';
         else if (confidence > 0.6) severityClass = 'moderate';
         else if (confidence > 0.4) severityClass = 'mild';
+        // 如果是健康，强制设置徽章为healthy
+        if (diseaseName.toLowerCase() === '健康') {
+            severityClass = 'healthy';
+        }
 
+        // 根据不同情况准备内容HTML
+        let detailsHTML = '';
+        
+        // 情况1: 识别为健康，且有健康护理信息
+        if (diseaseName.toLowerCase() === '健康' && Object.keys(healthyInfo).length > 0) {
+            detailsHTML = `
+                <div class="healthy-care-summary">
+                    <h5><i class="fas fa-seedling"></i> 健康植株护理建议:</h5>
+                    ${healthyInfo.prevention && healthyInfo.prevention.length > 0 ? `
+                        <h6><i class="fas fa-shield-alt"></i> 日常预防:</h6>
+                        <ul class="care-list">${healthyInfo.prevention.map(tip => `<li>${tip}</li>`).join('')}</ul>
+                    ` : ''}
+                    ${healthyInfo.organic_solutions && healthyInfo.organic_solutions.length > 0 ? `
+                        <h6><i class="fas fa-tractor"></i> 有机管理技巧:</h6>
+                        <ul class="care-list">${healthyInfo.organic_solutions.map(tip => `<li>${tip}</li>`).join('')}</ul>
+                    ` : ''}
+                    <button class="action-button secondary view-treatment-details" data-plant="${plantType}" data-disease="健康">
+                        <i class="fas fa-book-open"></i> 查看完整健康护理指南
+                    </button>
+                </div>
+            `;
+        } 
+        // 情况2: 识别为病害，且有治疗信息
+        else if (diseaseName.toLowerCase() !== '健康' && diseaseName !== "未知" && Object.keys(treatmentInfo).length > 0) {
+            detailsHTML = `
+                <div class="treatment-summary">
+                    <h5>初步治疗建议:</h5>
+                    <p>${treatmentInfo.treatments ? treatmentInfo.treatments[0] : '暂无建议'}</p>
+                    <button class="action-button secondary view-treatment-details" data-plant="${plantType}" data-disease="${diseaseName}">
+                        <i class="fas fa-notes-medical"></i> 查看详细治疗方案
+                    </button>
+                </div>
+            `;
+        } 
+        // 情况3: 无法识别或状态未知
+        else if (className === "无法识别" || diseaseName === "未知") {
+            detailsHTML = `<p>无法确认植物健康状态。请尝试上传更清晰的图像。</p>`;
+        }
+        // 情况4: 其它情况
+        else {
+            detailsHTML = `<p>${diseaseName.toLowerCase() === '健康' ? '植物看起来很健康！' : `未找到针对"${diseaseName}"的特定治疗建议。`}</p>`;
+        }
+
+        // 构建结果卡片HTML
         resultCard.innerHTML = `
             <div class="result-header">
                 <h4>${className}</h4>
@@ -630,21 +680,13 @@
                         <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
                     </div>
                 </div>
-                <span class="severity-badge ${severityClass}">置信度评估: ${severityClass}</span>
+                <span class="severity-badge ${severityClass}">${diseaseName.toLowerCase() === '健康' ? '状态健康' : '置信度评估: ' + severityClass}</span>
             </div>
             <div class="result-details">
                 <p>识别来源: 检测器模型 (图像级检测)</p>
-                ${Object.keys(treatmentInfo).length > 0 && !treatmentInfo.error ? `
-                    <div class="treatment-summary">
-                        <h5>初步治疗建议:</h5>
-                        <p>${treatmentInfo.treatments ? treatmentInfo.treatments[0] : '暂无建议'}</p>
-                        <button class="action-button secondary view-treatment-details" data-plant="${plantType}" data-disease="${diseaseName}">
-                            <i class="fas fa-notes-medical"></i> 查看详细治疗方案
-                        </button>
-                    </div>
-                ` : diseaseName.toLowerCase() !== '健康' ? `<p>未找到针对"${diseaseName}"的特定治疗建议。</p>` : '<p>植物看起来很健康！</p>'}
+                ${detailsHTML}
 
-                <!-- 新增: Grad-CAM 相关按钮 -->
+                <!-- Grad-CAM 相关按钮 -->
                 ${labelId !== -1 ? `
                 <div class="gradcam-actions">
                     <button class="action-button tertiary explain-button" data-label-id="${labelId}">
@@ -660,18 +702,8 @@
             </div>
         `;
         container.appendChild(resultCard);
-        // --- 结束修改结果卡片 ---
 
-        // --- 移除或注释掉旧的可视化调用 ---
-        // const previewImage = document.querySelector('.preview-image');
-        // if (previewImage && typeof PlantVis !== 'undefined') {
-        //    // ... 旧的调用 PlantVis.renderDetectionBoxes 等代码 ...
-        //    // PlantVis.displayVisualization(...);
-        // }
-        // --- 结束移除 ---
-
-        // --- 添加新的事件监听 ---
-        // 查看详细治疗方案按钮
+        // 添加事件监听器
         const treatmentBtn = resultCard.querySelector('.view-treatment-details');
         if (treatmentBtn) {
             treatmentBtn.addEventListener('click', function() {
@@ -680,7 +712,6 @@
                 fetch(`/api/treatment?plant=${encodeURIComponent(plant)}&disease=${encodeURIComponent(disease)}`)
                     .then(res => res.json())
                     .then(treatmentData => {
-                        // 假设你有一个函数 showDetailedTreatment 来显示模态框
                         showDetailedTreatment(treatmentData);
                     })
                     .catch(err => console.error('获取治疗信息失败:', err));
@@ -690,11 +721,10 @@
         // Grad-CAM 解释按钮
         const explainBtn = resultCard.querySelector('.explain-button');
         if (explainBtn) {
-            explainBtn.addEventListener('click', handleExplainRequest); // 调用新的处理函数
+            explainBtn.addEventListener('click', handleExplainRequest); 
         }
-        // --- 结束添加 ---
 
-        // 显示结果容器 (保留)
+        // 显示结果容器
         container.style.display = 'block';
         container.scrollIntoView({ behavior: 'smooth' });
     }
@@ -1086,7 +1116,7 @@
         // 获取模态框元素
         let modal = document.getElementById('treatment-modal');
         
-        // 如果模态框不存在，创建一个
+        // 如果模态框不存在，则创建一个
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'treatment-modal';
@@ -1121,60 +1151,106 @@
         // 准备模态框内容
         const modalBody = document.getElementById('modal-body');
         
-        // 添加返回按钮和标题
-        modalBody.innerHTML = `
-            <div class="treatment-header-nav">
-                <h3>${treatment.plant_name}的${treatment.disease_name}详细治疗方案</h3>
-            </div>
-            
-            <div class="treatment-section">
-                <h4>症状描述</h4>
-                <ul>
-                    ${treatment.symptoms ? treatment.symptoms.map(s => `<li>${s}</li>`).join('') : '<li>无症状描述</li>'}
-                </ul>
-            </div>
-            
-            <div class="treatment-section">
-                <h4>病因分析</h4>
-                <p>${treatment.causes ? treatment.causes.join('</p><p>') : '无病因分析'}</p>
-            </div>
-            
-            <div class="treatment-section">
-                <h4>治疗方法</h4>
-                <ul>
-                    ${treatment.treatments ? treatment.treatments.map(t => `<li>${t}</li>`).join('') : '<li>无治疗方法</li>'}
-                </ul>
-            </div>
-            
-            <div class="treatment-section">
-                <h4>预防措施</h4>
-                <ul>
-                    ${treatment.prevention ? treatment.prevention.map(p => `<li>${p}</li>`).join('') : '<li>无预防措施</li>'}
-                </ul>
-            </div>
-            
-            ${treatment.organic_solutions ? `
-            <div class="treatment-section organic">
-                <h4>有机解决方案</h4>
-                <ul>
-                    ${treatment.organic_solutions.map(o => `<li>${o}</li>`).join('')}
-                </ul>
-            </div>
-            ` : ''}
-            
-            ${treatment.severity ? `
-            <div class="treatment-section">
-                <h4>严重程度</h4>
-                <p>${treatment.severity}</p>
-            </div>
-            ` : ''}
-            
-            <div class="treatment-actions">
-                <button class="action-button secondary" id="close-treatment-modal">
-                    <i class="fas fa-times"></i> 关闭
-                </button>
-            </div>
-        `;
+        // 检查是否是健康植物
+        const isHealthy = treatment.disease_name && treatment.disease_name.toLowerCase() === '健康';
+        
+        // 创建标题
+        const title = isHealthy 
+            ? `${treatment.plant_name} - 健康植物护理指南`
+            : `${treatment.plant_name}的${treatment.disease_name}详细治疗方案`;
+        
+        // 健康植物和患病植物显示不同内容
+        if (isHealthy) {
+            modalBody.innerHTML = `
+                <div class="treatment-header-nav">
+                    <h3>${title}</h3>
+                </div>
+                
+                <div class="treatment-section">
+                    <h4><i class="fas fa-shield-alt"></i> 日常护理</h4>
+                    <ul>
+                        ${treatment.prevention ? treatment.prevention.map(p => `<li>${p}</li>`).join('') : '<li>维持良好的生长环境</li>'}
+                    </ul>
+                </div>
+                
+                ${treatment.organic_solutions ? `
+                <div class="treatment-section organic">
+                    <h4><i class="fas fa-leaf"></i> 有机管理方法</h4>
+                    <ul>
+                        ${treatment.organic_solutions.map(o => `<li>${o}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                
+                <div class="treatment-section">
+                    <h4><i class="fas fa-check-circle"></i> 健康指标</h4>
+                    <ul>
+                        ${treatment.symptoms ? treatment.symptoms.map(s => `<li>${s}</li>`).join('') : '<li>叶片颜色鲜亮，无异常斑点</li>'}
+                    </ul>
+                </div>
+                
+                <div class="treatment-actions">
+                    <button class="action-button secondary" id="close-treatment-modal">
+                        <i class="fas fa-times"></i> 关闭
+                    </button>
+                </div>
+            `;
+        } else {
+            // 原有的病害治疗信息显示
+            modalBody.innerHTML = `
+                <div class="treatment-header-nav">
+                    <h3>${title}</h3>
+                </div>
+                
+                <div class="treatment-section">
+                    <h4>症状描述</h4>
+                    <ul>
+                        ${treatment.symptoms ? treatment.symptoms.map(s => `<li>${s}</li>`).join('') : '<li>无症状描述</li>'}
+                    </ul>
+                </div>
+                
+                <div class="treatment-section">
+                    <h4>病因分析</h4>
+                    <p>${treatment.causes ? treatment.causes.join('</p><p>') : '无病因分析'}</p>
+                </div>
+                
+                <div class="treatment-section">
+                    <h4>治疗方法</h4>
+                    <ul>
+                        ${treatment.treatments ? treatment.treatments.map(t => `<li>${t}</li>`).join('') : '<li>无治疗方法</li>'}
+                    </ul>
+                </div>
+                
+                <div class="treatment-section">
+                    <h4>预防措施</h4>
+                    <ul>
+                        ${treatment.prevention ? treatment.prevention.map(p => `<li>${p}</li>`).join('') : '<li>无预防措施</li>'}
+                    </ul>
+                </div>
+                
+                ${treatment.organic_solutions ? `
+                <div class="treatment-section organic">
+                    <h4>有机解决方案</h4>
+                    <ul>
+                        ${treatment.organic_solutions.map(o => `<li>${o}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                
+                ${treatment.severity ? `
+                <div class="treatment-section">
+                    <h4>严重程度</h4>
+                    <p>${treatment.severity}</p>
+                </div>
+                ` : ''}
+                
+                <div class="treatment-actions">
+                    <button class="action-button secondary" id="close-treatment-modal">
+                        <i class="fas fa-times"></i> 关闭
+                    </button>
+                </div>
+            `;
+        }
         
         // 显示模态框
         modal.style.display = 'block';
@@ -1968,6 +2044,13 @@
             errorDisplay.style.display = 'block';
             button.disabled = false;
         });
+
+        if (!gradcamImageContainer.querySelector('.gradcam-explanation')) {
+            const explanation = document.createElement('div');
+            explanation.className = 'gradcam-explanation';
+            explanation.innerHTML = 'Grad-CAM热力图显示了模型在做出预测时重点关注的区域，红色区域表示对预测影响较大的特征。';
+            gradcamImageContainer.appendChild(explanation);
+        }
     }
 
 })();

@@ -1,1110 +1,1144 @@
-/* 基础样式重置 */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+/* static/css/style.css - 优化版 */
+
+/* 1. 基础与变量定义 */
+:root {
+    --primary-color: #4CAF50;      /* 主色调：自然绿 */
+    --primary-hover: #45a049;      /* 主色调悬停 */
+    --secondary-color: #2196F3;    /* 次要色：科技蓝 */
+    --accent-color: #FF9800;       /* 强调色：醒目橙 */
+    --light-bg: #f8f9fa;           /* 浅色背景 */
+    --white-bg: #ffffff;           /* 白色背景 */
+    --dark-text: #343a40;          /* 主要文字 */
+    --gray-text: #6c757d;          /* 次要文字 */
+    --border-color: #dee2e6;       /* 边框颜色 */
+    --shadow: 0 4px 12px rgba(0,0,0,0.08); /* 统一阴影 */
+    --border-radius: 8px;          /* 统一圆角 */
+    --button-border-radius: 50px; /* 按钮圆角 */
+    --modal-bg: rgba(0, 0, 0, 0.5); /* 模态框背景 */
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* 更现代的字体 */
+    color: var(--dark-text);
+    background-color: var(--light-bg);
     line-height: 1.6;
-    color: #333;
-    background-color: #f8f9fa;
-    padding: 20px;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    align-items: flex-start; /* 顶部对齐 */
+    padding-top: 20px; /* 给顶部一些空间 */
+    padding-bottom: 20px;
 }
 
 .container {
     max-width: 1000px;
+    width: 95%; /* 在小屏幕上留边距 */
     margin: 0 auto;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    background-color: var(--white-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
     padding: 30px;
+    box-sizing: border-box; /* 包含padding */
 }
 
-/* 头部样式 */
-header {
+/* 响应式容器 */
+@media (max-width: 768px) {
+    body {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .container {
+        width: calc(100% - 20px); /* 确保宽度计算正确 */
+        padding: 15px;
+        margin: 10px;
+    }
+    .header h1 { font-size: 2rem; }
+    .subtitle { font-size: 1rem; }
+}
+
+/* Font Awesome 图标基础样式 */
+.fas {
+    line-height: 1; /* 确保图标垂直居中 */
+}
+
+
+/* 2. 页面头部优化 */
+.header {
     text-align: center;
-    margin-bottom: 3rem;
+    margin-bottom: 2.5rem;
+    position: relative;
 }
 
-h1 {
-    color: #2c3e50;
+.header h1 {
+    color: var(--primary-color);
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
+    position: relative;
+    display: inline-block;
+    font-weight: 600; /* 稍粗 */
+}
+
+/* 标题下划线 */
+.header h1:after {
+    content: "";
+    display: block;
+    width: 60px;
+    height: 4px;
+    background-color: var(--primary-color);
+    margin: 10px auto 0;
+    border-radius: 2px;
 }
 
 .subtitle {
-    color: #7f8c8d;
-    font-size: 18px;
+    color: var(--gray-text);
+    font-size: 1.1rem;
+    margin-bottom: 8px;
 }
 
-.task-selection {
-    display: flex;
+.system-scope {
+    color: var(--gray-text);
+    font-size: 0.9rem;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+/* 系统信息折叠面板样式 */
+.system-info {
+    display: flex; /* 使内部details居中 */
     justify-content: center;
-    margin-bottom: 20px;
-    gap: 10px;
+    margin-top: 20px;
+}
+
+.system-info details {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    width: 100%; /* 宽度自适应 */
+    max-width: 700px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.system-info summary {
+    padding: 12px 15px;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    font-weight: 500;
+    list-style: none; /* 移除默认三角 */
+    background: linear-gradient(to bottom, #ffffff, #f9f9f9); /* 渐变背景 */
+    display: block; /* 确保summary是块级元素 */
+}
+
+.system-info summary::-webkit-details-marker {
+    display: none; /* 隐藏 Webkit 默认标记 */
+}
+
+/* 自定义展开/收起图标 */
+.system-info summary:after {
+    content: "+";
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: transform 0.3s ease;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.system-info details[open] summary:after {
+    content: "−";
+}
+
+.info-content {
+    padding: 15px;
+    background-color: #fafafa;
+    border-top: 1px solid #eee;
+    font-size: 0.95rem;
+}
+
+/* 3. 任务切换按钮 */
+.task-selection {
+    display: flex; /* 改为 flex 以便居中 */
+    justify-content: center; /* 水平居中 */
+    margin-bottom: 25px;
+    /* 包裹容器，模拟分段控件 */
+    background: #e9ecef; /* 浅灰色背景 */
+    padding: 5px;
+    border-radius: var(--button-border-radius); /* 使用按钮圆角 */
+    display: inline-flex; /* 改回inline-flex可能更适合居中 */
+    margin-left: auto;
+    margin-right: auto;
+    display: block; /* 确保能在父元素中居中 */
+    width: fit-content; /* 根据内容调整宽度 */
 }
 
 .task-switch {
-    padding: 10px 20px;
-    border: 2px solid #e0e0e0;
-    background-color: #fff;
-    border-radius: 30px;
+    padding: 10px 25px; /* 增加内边距 */
+    border: none;
+    border-radius: var(--button-border-radius); /* 统一圆角 */
+    background: transparent;
+    color: var(--dark-text);
+    font-weight: 500;
+    font-size: 1rem; /* 稍大字体 */
     cursor: pointer;
-    font-weight: 600;
     transition: all 0.3s ease;
-    outline: none;
+    position: relative;
+    z-index: 1;
 }
 
+/* 活动状态的背景和阴影 */
 .task-switch.active {
-    background-color: #3498db;
-    color: white;
-    border-color: #3498db;
+    color: #fff;
+    background-color: var(--primary-color);
+    box-shadow: 0 3px 8px rgba(76, 175, 80, 0.4);
 }
 
-/* 添加或修改状态消息样式 */
+.task-switch:not(.active):hover {
+    background-color: rgba(0, 0, 0, 0.05); /* 轻微悬停效果 */
+}
+
+.task-switch:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3); /* 添加 focus 效果 */
+}
+
+/* 移除活动状态的伪元素，直接用背景色 */
+/* .task-switch.active::before { ... } */
+
+/* 4. 状态消息美化 */
 .status-message {
     text-align: center;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 20px;
+    padding: 12px 20px; /* 增加左右内边距 */
+    border-radius: var(--border-radius);
+    margin-bottom: 25px;
     transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    font-size: 0.95rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+    display: flex; /* 使用 Flexbox 垂直居中图标和文字 */
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* 图标和文字间距 */
 }
 
-.status-message.info {
-    background-color: #d1ecf1;
-    color: #0c5460;
+/* 左侧彩色边框 */
+.status-message::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px; /* 加宽边框 */
+    border-top-left-radius: var(--border-radius); /* 圆角匹配 */
+    border-bottom-left-radius: var(--border-radius);
 }
 
-.status-message.error {
-    background-color: #f8d7da;
-    color: #721c24;
+/* 添加图标 */
+.status-message::after {
+    font-family: "Font Awesome 5 Free"; /* Font Awesome 5 */
+    font-weight: 900; /* Solid style */
+    margin-right: 8px; /* 图标和文字间距，移到这里 */
+    font-size: 1.1em; /* 图标稍大 */
 }
 
-.status-message.warning {
-    background-color: #fff3cd;
-    color: #856404;
-}
+.status-message.info { background-color: #e3f2fd; color: #1e88e5; }
+.status-message.info::before { background-color: #2196F3; }
+.status-message.info::after { content: "\f05a"; } /* info-circle */
 
-.status-message.success {
-    background-color: #d4edda;
-    color: #155724;
+.status-message.error { background-color: #ffebee; color: #c62828; }
+.status-message.error::before { background-color: #f44336; }
+.status-message.error::after { content: "\f071"; } /* exclamation-triangle */
+
+.status-message.warning { background-color: #fff8e1; color: #ff8f00; }
+.status-message.warning::before { background-color: #ffc107; }
+.status-message.warning::after { content: "\f06a"; } /* exclamation-circle */
+
+.status-message.success { background-color: #e8f5e9; color: #2e7d32; }
+.status-message.success::before { background-color: #4caf50; }
+.status-message.success::after { content: "\f058"; } /* check-circle */
+
+/* 消息动画效果 */
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 2px 5px rgba(0,0,0,0.06); }
+    50% { transform: scale(1.01); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    100% { transform: scale(1); box-shadow: 0 2px 5px rgba(0,0,0,0.06); }
 }
 
 .status-message.highlight {
-    animation: pulse 1s;
+    animation: pulse 0.8s ease-in-out;
 }
 
-/* 添加更多动画样式 */
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
 
-/* 上传区域样式 */
+/* 5. 上传区域美化 */
 .upload-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 35px;
 }
 
 .drop-zone {
-    border: 2px dashed #3498db;
-    border-radius: 8px;
-    padding: 40px;
+    width: 100%;
+    max-width: 600px; /* 稍微加宽 */
+    padding: 50px 20px; /* 增加垂直内边距 */
     text-align: center;
     cursor: pointer;
+    border: 2px dashed #cfd8dc; /* 虚线边框 */
+    border-radius: var(--border-radius);
+    background-color: #fdfdfd; /* 更浅的背景 */
     transition: all 0.3s ease;
-    width: 100%;
-    max-width: 500px;
-    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
 }
 
 .drop-zone:hover, .drop-zone.active {
-    background-color: #eaf2fd;
+    border-color: var(--primary-color);
+    background-color: #e8f5e9; /* 悬停时淡绿色背景 */
+    transform: scale(1.01); /* 轻微放大效果 */
 }
+
+/* 移除伪元素背景效果，保持简洁 */
+/* .drop-zone:before { ... } */
 
 .upload-icon {
-    width: 64px;
-    height: 64px;
+    width: 50px; /* 调整图标大小 */
+    height: 50px;
     margin-bottom: 15px;
-    color: #3498db;
+    /* SVG 颜色可以通过 CSS filter 或直接修改 SVG 文件来控制 */
+    filter: grayscale(50%) opacity(0.6); /* 使图标柔和 */
+    transition: all 0.3s ease;
 }
 
+.drop-zone:hover .upload-icon {
+    filter: grayscale(0%) opacity(1);
+    transform: scale(1.1) translateY(-3px); /* 悬停动画 */
+}
+
+.drop-zone p {
+    color: var(--gray-text);
+    margin: 0;
+    font-size: 1rem;
+}
+
+/* 预览容器 */
 .preview-container {
+    margin: 25px 0; /* 增加上下间距 */
+    text-align: center;
     width: 100%;
-    max-width: 500px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    overflow: hidden;
+    max-width: 500px; /* 限制最大宽度 */
 }
 
 .preview-image-container {
     position: relative;
-    width: 100%;
+    overflow: hidden;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow); /* 使用统一阴影 */
+    display: inline-block; /* 允许文本居中 */
+    border: 1px solid var(--border-color); /* 添加细边框 */
 }
 
 .preview-image {
-    width: 100%;
-    border-radius: 8px;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    max-height: 450px; /* 增加最大高度 */
+    object-fit: contain; /* 保持比例 */
 }
 
+
+/* 6. 按钮美化 (通用 Action Button) */
 .action-button {
-    padding: 12px 24px;
+    padding: 10px 25px; /* 调整内边距 */
     border: none;
-    border-radius: 4px;
+    border-radius: var(--button-border-radius);
     cursor: pointer;
-    font-weight: 600;
-    transition: background-color 0.3s ease;
-    display: flex;
+    font-weight: 500; /* 稍粗 */
+    transition: all 0.3s ease;
+    display: inline-flex;
     align-items: center;
+    justify-content: center; /* 文本和图标居中 */
     gap: 8px;
+    font-size: 1rem; /* 调整字体大小 */
+    position: relative;
+    overflow: hidden;
+    text-decoration: none; /* 移除链接下划线 */
+    line-height: 1.5; /* 确保文字垂直居中 */
 }
 
+/* 移除水波纹效果，保持简洁 */
+/* .action-button:after { ... } */
+/* @keyframes ripple { ... } */
+
+.action-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3); /* Focus 效果用 box-shadow */
+}
+
+/* Primary button */
 .action-button.primary {
-    background-color: #3498db;
+    background-color: var(--primary-color);
     color: white;
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.25); /* 调整阴影 */
+}
+
+.action-button.primary:hover {
+    background-color: var(--primary-hover);
+    box-shadow: 0 6px 14px rgba(76, 175, 80, 0.35);
+    transform: translateY(-2px); /* 悬停上移效果 */
 }
 
 .action-button.primary:disabled {
-    background-color: #a0c4e4;
+    background-color: #a5d6a7;
+    box-shadow: none;
     cursor: not-allowed;
+    opacity: 0.7;
+    transform: none;
 }
 
-.action-button i {
-    font-size: 16px;
-}
-
-/* 结果区域样式 */
-.result-section {
+/* Secondary button */
+.action-button.secondary {
     background-color: white;
-    border-radius: 10px;
-    padding: 2rem;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    color: var(--primary-color); /* 文字用主色 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--primary-color); /* 边框用主色 */
 }
 
-.result-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    margin-top: 1.5rem;
+.action-button.secondary:hover {
+    background-color: #e8f5e9; /* 淡绿色背景 */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
 }
 
-.image-preview {
-    width: 100%;
-    border-radius: 8px;
-    overflow: hidden;
+/* Tertiary button (例如 Grad-CAM 按钮) */
+.action-button.tertiary {
+    background-color: #f5f5f5;
+    color: var(--dark-text);
+    border: 1px solid #e0e0e0; /* 更浅的边框 */
 }
 
-.image-preview img {
-    width: 100%;
-    height: auto;
-    object-fit: cover;
+.action-button.tertiary:hover {
+    background-color: #eeeeee; /* 稍深一点的灰色 */
 }
 
-.result-item {
-    margin-bottom: 1.5rem;
+/* 主要提交按钮样式（如果需要覆盖）*/
+#submit-button {
+    margin-top: 25px; /* 增加与预览图的距离 */
+    padding: 12px 30px; /* 更大的按钮 */
+    font-size: 1.1rem;
 }
 
-.result-item h3 {
-    color: #2c3e50;
-    margin-bottom: 0.5rem;
-    font-size: 1.2rem;
+/* 结果区域的操作按钮容器 */
+.result-actions {
+  display: flex;
+  justify-content: center; /* 居中按钮 */
+  gap: 15px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0; /* 添加分隔线 */
 }
 
-.confidence-bar {
-    height: 20px;
-    background-color: #ecf0f1;
-    border-radius: 10px;
-    overflow: hidden;
+/* 分类和检测卡片内的按钮容器 */
+.action-buttons-container {
+  display: flex;
+  flex-wrap: wrap; /* 允许换行 */
+  justify-content: center; /* 居中按钮 */
+  gap: 15px; /* 按钮间距 */
+  margin-top: 25px;
 }
 
-.confidence-bar div {
-    height: 100%;
-    background-color: #2ecc71;
-    transition: width 0.3s ease;
+/* 让卡片内的按钮宽度自适应，而不是 flex: 1 */
+.action-buttons-container .action-button {
+  /* flex: 1; */ /* 移除这个，让按钮根据内容调整宽度 */
+  min-width: 180px; /* 可以设置最小宽度 */
 }
 
+@media (max-width: 600px) {
+  .action-buttons-container {
+    /* 在小屏幕上可以保持flex布局，或改为 block */
+     flex-direction: column;
+     align-items: center;
+  }
+   .action-buttons-container .action-button {
+       width: 80%; /* 让按钮宽度适应小屏幕 */
+       max-width: 300px;
+   }
+   .result-actions {
+       flex-direction: column;
+       align-items: center;
+   }
+   .result-actions .action-button {
+       width: 80%;
+       max-width: 300px;
+   }
+}
+
+
+/* 7. 结果显示区域美化 */
 .results-container {
-    margin-top: 30px;
-    padding: 20px;
-    border-top: 1px solid #eee;
+    margin-top: 35px; /* 增加顶部间距 */
+    padding-top: 20px; /* 增加内边距 */
+    position: relative;
+    /* 可以添加一个浅背景区分 */
+    /* background-color: #fdfdfd; */
+    /* border-radius: var(--border-radius); */
+    /* padding: 20px; */
 }
 
+/* 结果区域标题 */
+.results-container > h3 {
+    text-align: center;
+    color: var(--dark-text);
+    font-size: 1.6rem; /* 加大标题 */
+    margin-bottom: 25px;
+    position: relative;
+    /* 移除 transform 居中，使用 text-align */
+    /* left: 50%; */
+    /* transform: translateX(-50%); */
+    display: block;
+}
+
+.results-container > h3:after {
+    content: "";
+    display: block;
+    width: 50px; /* 加宽下划线 */
+    height: 3px;
+    background-color: var(--secondary-color); /* 使用次要色 */
+    margin: 10px auto 0;
+    border-radius: 2px;
+}
+
+/* 结果卡片 */
 .result-card {
-    background-color: #f9f9f9;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    background-color: var(--white-bg);
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 30px; /* 增加卡片间距 */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid transparent; /* 预留边框位置 */
 }
 
+.result-card:hover {
+    transform: translateY(-4px); /* 悬停效果更明显 */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    border-color: var(--primary-color); /* 悬停时显示边框 */
+}
+
+/* 结果卡片头部 */
 .result-header {
     display: flex;
+    flex-wrap: wrap; /* 允许换行 */
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start; /* 顶部对齐 */
     margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f0f0f0;
 }
 
+.result-header h4 {
+    margin: 0 0 5px 0; /* 调整边距 */
+    font-size: 1.4rem; /* 调整字体大小 */
+    color: var(--dark-text);
+    font-weight: 600;
+    flex-basis: 60%; /* 给标题更多空间 */
+}
+
+/* 置信度显示 */
 .confidence {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    align-items: center; /* 水平对齐 */
+    gap: 10px; /* 值和条的间距 */
+    flex-basis: 35%; /* 限制宽度 */
+    justify-content: flex-end; /* 右对齐 */
 }
 
 .confidence-value {
     font-weight: bold;
-    color: #3498db;
-    margin-bottom: 5px;
+    color: var(--primary-color);
+    font-size: 1.3rem; /* 加大置信度数字 */
+    white-space: nowrap; /* 防止换行 */
 }
 
 .confidence-bar {
-    width: 150px;
-    height: 10px;
-    background-color: #e0e0e0;
+    width: 80px; /* 固定宽度 */
+    height: 10px; /* 加高进度条 */
+    background-color: #e9ecef; /* 更柔和的背景 */
     border-radius: 5px;
     overflow: hidden;
+    /* margin-top: 0; */ /* 移除上边距 */
 }
 
 .confidence-fill {
     height: 100%;
-    background-color: #3498db;
+    background: linear-gradient(to right, #81c784, #4caf50); /* 绿色渐变 */
     border-radius: 5px;
+    transition: width 0.8s ease-in-out;
 }
 
+/* 严重程度标签 */
+.severity-badge {
+    padding: 4px 10px; /* 调整内边距 */
+    border-radius: var(--button-border-radius);
+    font-size: 0.8rem; /* 调整字体 */
+    font-weight: 500;
+    color: white;
+    display: inline-block;
+    /* margin-top: 10px; */ /* 移到头部后不需要 */
+    margin-left: 10px;
+    vertical-align: middle; /* 与标题对齐 */
+    white-space: nowrap;
+}
+/* Severity badge colors (保持不变) */
+.severity-badge.severe { background-color: #f44336; }
+.severity-badge.moderate { background-color: #ff9800; }
+.severity-badge.mild { background-color: #ffc107; }
+.severity-badge.healthy { background-color: #4caf50; }
+.severity-badge.unknown { background-color: #9e9e9e; }
+
+
+/* 结果详情区域 */
 .result-details {
-    margin-top: 20px;
+    margin-top: 20px; /* 增加与头部的距离 */
+}
+
+/* 分类结果的特定样式 */
+.result-details.classification-details {
+    display: grid; /* 使用 Grid 布局 */
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* 响应式列 */
+    gap: 25px; /* 网格间距 */
+}
+
+.plant-info, .other-predictions {
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: var(--border-radius);
+    /* margin-bottom: 0; */ /* Grid 布局不需要 */
 }
 
 .plant-description {
-    margin-bottom: 15px;
-    line-height: 1.6;
+    color: var(--dark-text);
+    line-height: 1.7; /* 增加行高 */
+    font-size: 1rem; /* 标准化字体 */
+    margin-bottom: 15px; /* 段落下间距 */
 }
 
-.predictions-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
-}
-
-.prediction-confidence {
-    font-weight: bold;
-}
-
-.severity-badge {
-    padding: 5px 10px;
-    border-radius: 15px;
-    font-size: 14px;
+.general-care h5, .other-predictions h5 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: var(--primary-color); /* 标题用主色 */
+    font-size: 1.1rem;
     font-weight: 600;
+    border-bottom: 1px dashed #ccc;
+    padding-bottom: 5px;
 }
 
-.severity-badge.mild {
-    background-color: #fff3cd;
-    color: #856404;
+.care-list, .predictions-list {
+    padding-left: 20px;
+    color: #455a64; /* 稍深的灰色 */
+    font-size: 0.95rem;
+    list-style: none; /* 移除默认列表样式 */
+    padding: 0;
+    margin: 10px 0 0;
 }
 
-.severity-badge.moderate {
-    background-color: #ffebcd;
-    color: #ff8c00;
+.care-list li, .predictions-list li {
+    margin-bottom: 8px;
+    padding: 8px 12px; /* 给列表项背景和内边距 */
+    background: #f5f5f5;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: flex; /* 用于预测列表对齐 */
+    justify-content: space-between; /* 用于预测列表对齐 */
+}
+.care-list li {
+    background: none; /* 护理列表不需要背景 */
+    padding-left: 0;
+     position: relative;
+     padding-left: 18px; /* 为图标留空间 */
+}
+.care-list li::before {
+    content: "\f06c"; /* check icon */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    color: var(--primary-color);
+    position: absolute;
+    left: 0;
+    top: 2px;
 }
 
-.severity-badge.severe {
-    background-color: #f8d7da;
-    color: #721c24;
+
+.predictions-list li:hover {
+    background: #e3f2fd;
+    transform: translateX(3px); /* 轻微悬停效果 */
 }
 
-.severity-badge.healthy {
-    background-color: #d4edda;
-    color: #155724;
+.prediction-name { color: var(--dark-text); font-weight: 500; }
+.prediction-confidence { color: var(--secondary-color); font-weight: bold; } /* 次要色 */
+
+
+/* 检测结果的特定样式 */
+.detection-as-classification-result .result-details > p {
+    font-style: italic;
+    color: var(--gray-text);
+    margin-bottom: 15px;
+    text-align: center; /* 居中识别来源 */
+    background: #f0f0f0;
+    padding: 5px;
+    border-radius: 4px;
 }
 
-.disease-list {
+.treatment-summary {
+    background-color: #e8f5e9;
+    padding: 18px; /* 增加内边距 */
+    border-radius: var(--border-radius);
+    margin: 20px 0; /* 增加上下间距 */
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #c8e6c9; /* 添加边框 */
+}
+
+.treatment-summary:before {
+    content: "\f0fa"; /* medical icon */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    position: absolute;
+    left: 15px;
+    top: 18px;
+    color: var(--primary-color);
+    font-size: 1.3em;
+}
+
+.treatment-summary h5 {
+    color: #2e7d32; /* 深绿色 */
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-weight: 600;
+    padding-left: 25px; /* 为图标留空间 */
+}
+
+.treatment-summary p {
+    margin: 0 0 15px;
+    color: #37474f;
+    padding-left: 25px; /* 为图标留空间 */
+}
+
+/* 健康植物护理建议样式 */
+.healthy-care-summary {
+    background-color: #e8f5e9; /* 淡绿色背景 */
+    padding: 18px;
+    border-radius: var(--border-radius);
     margin: 15px 0;
-    list-style-type: none;
+    border: 1px solid #c8e6c9;
 }
 
-.disease-list li {
+.healthy-care-summary h5 {
+    color: #2e7d32; /* 深绿色 */
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-weight: 600;
     display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #a5d6a7;
+    padding-bottom: 8px;
 }
 
-.treatment-recommendations {
-    margin-top: 20px;
-    background-color: #e8f4f8;
-    padding: 15px;
-    border-radius: 5px;
+.healthy-care-summary h6 {
+    color: #388e3c; /* 中绿色 */
+    margin-top: 15px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.treatment-recommendations ul {
+.healthy-care-summary ul.care-list {
+    margin-top: 8px;
+    margin-bottom: 12px;
     padding-left: 20px;
 }
 
-.result-actions {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 20px;
+.healthy-care-summary ul.care-list li {
+    margin-bottom: 6px;
+    color: #37474f;
+    position: relative;
+    padding-left: 20px;
 }
 
-#loading-indicator {
-    position: fixed;
-    top: 0;
+.healthy-care-summary ul.care-list li::before {
+    content: "\f00c"; /* check icon */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    color: #4caf50;
+    position: absolute;
     left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(255, 255, 255, 0.7);
+    top: 2px;
+    font-size: 0.9em;
+}
+
+/* Grad-CAM 部分 */
+.gradcam-actions {
+    margin-top: 20px;
+    text-align: center; /* 居中按钮 */
+}
+.gradcam-result-container {
+    margin-top: 20px; /* 增加与上方按钮的间距 */
+    padding: 20px; /* 增加内边距，让内容更突出 */
+    background-color: #f8f9fa; /* 使用浅灰色背景 */
+    border-radius: var(--border-radius); /* 使用统一圆角 */
+    border: 1px solid #e9ecef; /* 添加更柔和的边框 */
+    
+    /* Flexbox 布局实现更好的居中效果 */
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    z-index: 1000;
+    justify-content: center;
 }
 
+/* 优化标题样式 */
+.gradcam-result-container h5 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: var(--dark-text);
+    font-size: 1.1rem;
+    position: relative;
+}
+
+/* 给标题添加下划线效果 */
+.gradcam-result-container h5:after {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 3px;
+    background-color: var(--secondary-color);
+    margin: 6px auto 0;
+    border-radius: 2px;
+}
+
+/* 优化图片样式 */
+.gradcam-image {
+    max-width: 90%; /* 增加最大宽度 */
+    height: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15); /* 增强阴影效果 */
+    display: block;
+    margin: 0 auto 15px; /* 增加下方间距 */
+    transition: transform 0.2s ease; /* 添加微小动画效果 */
+}
+
+.gradcam-image:hover {
+    transform: scale(1.01); /* 鼠标悬停时轻微放大 */
+}
+
+/* 文字提示样式 */
+.gradcam-loading,
+.gradcam-error,
+.gradcam-source {
+    margin-top: 10px;
+    font-style: italic;
+    color: var(--gray-text);
+    font-size: 0.9em;
+    max-width: 90%;
+    text-align: center;
+}
+
+.gradcam-error {
+    color: #c62828; /* 错误使用红色 */
+    font-weight: 500;
+}
+
+/* 添加一个解释文本区域 */
+.gradcam-explanation {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #e8f5e9;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: var(--dark-text);
+    max-width: 90%;
+    text-align: center;
+}
+
+/* 8. 模态框与可视化控件 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: var(--modal-bg);
+    backdrop-filter: blur(4px); /* 增加模糊效果 */
+    animation: fade-in 0.3s ease; /* 添加淡入动画 */
+}
+
+.modal-content {
+    background-color: var(--white-bg);
+    margin: 5% auto; /* 顶部距离稍大 */
+    padding: 30px; /* 增加内边距 */
+    border-radius: var(--border-radius);
+    width: 90%; /* 响应式宽度 */
+    max-width: 800px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    animation: modal-slide-down 0.4s ease-out forwards; /* 动画效果 */
+    position: relative; /* 为了关闭按钮定位 */
+}
+
+@keyframes modal-slide-down {
+    from { opacity: 0; transform: translateY(-30px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.close {
+    position: absolute; /* 绝对定位 */
+    top: 15px; /* 调整位置 */
+    right: 20px;
+    color: #aaa;
+    font-size: 32px; /* 加大图标 */
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+
+.close:hover, .close:focus {
+    color: var(--dark-text);
+    transform: scale(1.1); /* 悬停放大 */
+}
+
+#modal-body h3 { /* 模态框标题 */
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--primary-color);
+    font-size: 1.5rem;
+}
+
+/* 可视化容器和控件 (包含在 results-container 内) */
+.visualization-container {
+    margin-top: 25px;
+    padding: 15px; /* 减少内边距 */
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); /* 内阴影 */
+}
+.visualization-container canvas {
+    border: 1px solid var(--border-color); /* 给画布加边框 */
+}
+
+/* 可视化控件 */
+.vis-controls {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: var(--white-bg); /* 白色背景 */
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    border: 1px solid #f0f0f0; /* 添加细边框 */
+}
+
+.threshold-control { margin-bottom: 15px; }
+.threshold-label-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* 垂直居中 */
+    margin-bottom: 8px;
+}
+.threshold-label-container label { font-weight: 500; color: var(--dark-text); }
+.threshold-value { font-weight: bold; color: var(--secondary-color); font-size: 1rem; }
+
+/* 滑块样式美化 */
+.threshold-slider {
+    width: 100%;
+    height: 8px; /* 加高 */
+    background: linear-gradient(to right, var(--secondary-color), var(--accent-color)); /* 渐变色 */
+    border-radius: 4px;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+.threshold-slider:hover { opacity: 1; }
+
+/* 滑块Thumb样式 (Webkit) */
+.threshold-slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    cursor: pointer;
+    border: 3px solid white; /* 添加白色边框 */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    transition: all 0.2s ease;
+}
+.threshold-slider::-webkit-slider-thumb:hover { transform: scale(1.1); }
+/* 滑块Thumb样式 (Firefox) */
+.threshold-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* 可视化模式按钮 */
+.mode-control { margin-top: 15px; }
+.mode-control > div:first-child { /* "可视化模式:" 文本 */
+     font-weight: 500;
+     color: var(--dark-text);
+     margin-bottom: 10px;
+}
+.mode-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px; /* 按钮间距 */
+}
+.vis-mode-switch {
+    padding: 8px 15px;
+    border-radius: var(--button-border-radius);
+    background-color: #f0f0f0; /* 默认浅灰色 */
+    border: 1px solid transparent; /* 预留边框 */
+    color: var(--dark-text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.vis-mode-switch i { font-size: 0.9em; color: var(--gray-text); transition: color 0.2s ease; }
+.vis-mode-switch.active {
+    background-color: var(--secondary-color);
+    color: white;
+    border-color: var(--secondary-color);
+    box-shadow: 0 2px 5px rgba(33, 150, 243, 0.3);
+}
+.vis-mode-switch.active i { color: white; }
+.vis-mode-switch:not(.active):hover {
+    background-color: #e0e0e0;
+    border-color: #ccc;
+}
+
+
+/* 9. 额外视觉增强和动画 */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+/* 应用淡入效果 */
+.preview-container, .results-container, .modal.show { /* 给显示模态框加一个.show类 */
+    animation: fade-in 0.5s ease-out forwards;
+}
+
+/* 加载指示器（如果需要） */
+#loading-indicator {
+    /* ... 你原有的加载指示器样式 ... */
+     display: none; /* 初始隐藏 */
+     position: fixed;
+     top: 0; left: 0; width: 100%; height: 100%;
+     background-color: rgba(255, 255, 255, 0.8);
+     z-index: 1001;
+     flex-direction: column; align-items: center; justify-content: center;
+}
 .spinner {
     width: 50px;
     height: 50px;
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #3498db;
+    border: 4px solid rgba(76, 175, 80, 0.2); /* 淡绿色边框 */
     border-radius: 50%;
-    animation: spin 2s linear infinite;
-    margin-bottom: 15px;
+    border-top-color: var(--primary-color); /* 主色旋转 */
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px; /* 与文字间距 */
 }
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-#suggestions {
-    list-style-position: inside;
-    color: #7f8c8d;
-}
-
-/* 页脚样式 */
-footer {
-    text-align: center;
-    margin-top: 3rem;
-    padding-top: 2rem;
-    border-top: 1px solid #ecf0f1;
-    color: #7f8c8d;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-    .result-container {
-        grid-template-columns: 1fr;
-    }
-    
-    .container {
-        padding: 1rem;
-    }
-    
-    h1 {
-        font-size: 2rem;
-    }
-}
-
-.visualization-container {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.vis-control-panel {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: #f0f0f0;
-    border-radius: 5px;
-}
-
-.threshold-slider {
-    width: 100%;
-    margin: 10px 0;
-}
-
-.mode-buttons {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.vis-mode-switch {
-    padding: 6px 12px;
-    background-color: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.vis-mode-switch.active {
-    background-color: #2196F3;
-    color: white;
-}
-
-.download-vis-btn {
-    margin-top: 10px;
-    padding: 8px 16px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-/* 在文件末尾添加以下样式 */
-
-.system-scope {
-    font-size: 14px;
-    color: #666;
-    margin-top: 5px;
-    font-style: italic;
-}
-
-.system-info {
-    margin-top: 15px;
-}
-
-.info-content {
-    background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 5px;
-    margin-top: 10px;
-    font-size: 14px;
-    line-height: 1.6;
-}
-
-.info-content p {
-    margin-bottom: 10px;
-}
-
-.treatment-card {
-    background-color: #e8f4f8;
-    border-radius: 8px;
-    padding: 20px;
-    margin-top: 20px;
-}
-
-.treatment-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #cee0e8;
-    padding-bottom: 10px;
-    margin-bottom: 15px;
-}
-
-.treatment-content section {
-    margin-bottom: 15px;
-}
-
-.treatment-content h5 {
-    font-weight: 600;
-    color: #2c3e50;
-    margin-bottom: 8px;
-}
-
-.symptom-list, .treatment-list, .prevention-list {
-    padding-left: 20px;
-    margin-bottom: 10px;
-}
-
-.symptom-list li, .treatment-list li, .prevention-list li {
-    margin-bottom: 5px;
-    line-height: 1.4;
-}
-
-.organic-solutions {
-    background-color: #f0f7f0;
-    padding: 12px;
-    border-left: 4px solid #4CAF50;
-    margin-top: 15px;
-}
-
-.organic-solutions h6 {
-    color: #2e7d32;
-    margin-bottom: 8px;
-}
-
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.4);
-}
-
-.modal-content {
-    background-color: #fefefe;
-    margin: 15% auto;
-    padding: 20px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    width: 80%;
-    max-width: 600px;
-}
-
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.close:hover {
-    color: #444;
-}
-
-/* 治疗卡片增强样式 */
-.treatment-card {
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.treatment-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.treatment-card.highlight {
-    animation: pulse-highlight 1.5s;
-}
-
-@keyframes pulse-highlight {
-    0% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(66, 133, 244, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0); }
-}
-
-.treatment-section {
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #e8f4f8;
-}
-
-.treatment-section:last-child {
-    border-bottom: none;
-}
-
-.treatment-section h4 {
-    color: #2c3e50;
-    margin-bottom: 10px;
-    font-size: 18px;
-}
-
-.treatment-section.organic {
-    background-color: #f0f7f0;
-    padding: 15px;
-    border-radius: 5px;
-    border-left: 4px solid #4CAF50;
-}
-
-/* 病害库样式 */
-.disease-library-container {
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 20px;
-    margin-top: 25px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-}
-
-.disease-library-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    border-bottom: 2px solid #e0e0e0;
-    padding-bottom: 10px;
-}
-
-.disease-library-header h3 {
-    color: #2c3e50;
-    margin: 0;
-}
-
-.disease-library-close {
-    background: none;
-    border: none;
-    font-size: 20px;
-    color: #7f8c8d;
-    cursor: pointer;
-}
-
-.disease-library-close:hover {
-    color: #34495e;
-}
-
-.disease-items {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.disease-item {
-    background-color: #ffffff;
-    border-radius: 6px;
-    padding: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-left: 4px solid transparent;
-}
-
-.disease-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    border-left-color: #3498db;
-}
-
-.disease-item h4 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: #2c3e50;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.disease-item .symptoms-summary {
-    color: #7f8c8d;
-    font-size: 14px;
-    line-height: 1.4;
-    margin-bottom: 15px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2; /* Standard property for compatibility */
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.disease-item .severity {
-    font-size: 13px;
+#loading-indicator p {
+    color: var(--dark-text);
     font-weight: 500;
-    margin-bottom: 10px;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-.disease-item .severity.severe {
-    color: #e74c3c;
-}
-
-.disease-item .severity.moderate {
-    color: #e67e22;
-}
-
-.disease-item .severity.mild {
-    color: #f39c12;
-}
-
-.disease-item .severity.unknown {
-    color: #7f8c8d;
-}
-
-.disease-item .has-treatment {
-    display: inline-block;
-    background-color: #e8f4f8;
-    color: #3498db;
-    padding: 4px 8px;
-    font-size: 12px;
-    border-radius: 4px;
-    margin-top: 5px;
-}
-
-.plant-overview {
+/* 治疗详情卡片（模态框内） */
+.treatment-section {
+    padding: 15px;
     margin-bottom: 20px;
-    padding: 15px;
-    background-color: #e8f5e9;
-    border-radius: 6px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    background-color: var(--white-bg); /* 白色背景 */
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); /* 轻微阴影 */
+    border-left: 4px solid var(--primary-color); /* 左侧强调线 */
 }
-
-.plant-overview h4 {
-    color: #2e7d32;
+.treatment-section h4 {
     margin-top: 0;
-    margin-bottom: 10px;
-}
-
-.plant-overview p {
-    margin-bottom: 10px;
-    line-height: 1.5;
-}
-
-.plant-overview ul {
-    padding-left: 20px;
-}
-
-.plant-overview li {
-    margin-bottom: 5px;
-}
-
-/* 空状态样式 */
-.empty-state {
-    text-align: center;
-    padding: 30px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    margin: 20px 0;
-}
-
-.empty-state i {
-    font-size: 48px;
-    color: #e0e0e0;
-    margin-bottom: 15px;
-}
-
-.empty-state h4 {
-    color: #7f8c8d;
-    margin-bottom: 10px;
-}
-
-.empty-state p {
-    color: #95a5a6;
-}
-
-/* 添加检测提示卡样式 */
-.detection-prompt {
-    background-color: #e3f2fd;
-    border: 1px solid #bbdefb;
-    border-radius: 8px;
-    padding: 15px;
-    margin-top: 20px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-}
-
-.detection-prompt:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-
-/* 模态框样式改进 */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0, 0, 0, 0.6);
-}
-
-.modal-content {
-    background-color: #fefefe;
-    margin: 5% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%;
-    max-width: 800px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.close:hover,
-.close:focus {
-    color: black;
-    text-decoration: none;
-}
-
-/* 加载动画 */
-.loading {
-    text-align: center;
-    padding: 20px;
-    font-size: 18px;
-    color: #666;
-}
-
-.loading:after {
-    content: "...";
-    animation: dots 1.5s steps(5, end) infinite;
-}
-
-@keyframes dots {
-    0%, 20% { content: "."; }
-    40% { content: ".."; }
-    60% { content: "..."; }
-    80%, 100% { content: ""; }
-}
-
-/* 错误消息 */
-.error {
-    color: #D8000C;
-    background-color: #FFBABA;
-    padding: 10px 15px;
-    border-radius: 5px;
-    margin: 10px 0;
-}
-
-/* 疾病列表样式 */
-.diseases-list {
-    margin-top: 20px;
-}
-
-.disease-item {
-    background-color: #f9f9f9;
-    border-left: 4px solid #4CAF50;
-    margin-bottom: 15px;
-    padding: 10px 15px;
-    border-radius: 0 5px 5px 0;
-}
-
-.disease-item h4 {
-    margin-top: 0;
-    color: #2e7d32;
-}
-
-.disease-details {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-}
-
-.symptoms, .treatments {
-    flex: 1;
-    min-width: 250px;
-}
-
-/* 植物详情样式 */
-.plant-detail {
-    background-color: #f5f5f5;
-    padding: 15px;
-    border-radius: 5px;
-    margin: 15px 0;
-}
-
-.plant-detail .description {
-    font-size: 16px;
-    line-height: 1.6;
-}
-
-.care-tips, .common-diseases {
-    margin-top: 20px;
-}
-
-.care-tips h4, .common-diseases h4 {
-    color: #2196F3;
-    border-bottom: 1px solid #e0e0e0;
+    color: var(--primary-color);
+    font-size: 1.2rem; /* 稍大标题 */
     padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 12px;
 }
-
-.care-tips ul, .common-diseases ul {
+.treatment-section ul {
     padding-left: 20px;
-}
-
-.care-tips li, .common-diseases li {
-    margin-bottom: 8px;
-    line-height: 1.5;
-}
-
-/* 在文件末尾添加 */
-
-/* 按钮容器样式，让按钮横向排列 */
-.action-buttons-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 15px;
-    margin-top: 20px;
-}
-
-/* 确保两个按钮大小一致 */
-.action-buttons-container .action-button {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 12px 16px;
-    height: 48px;
-    text-align: center;
-    white-space: nowrap;
-}
-
-/* 调整按钮图标和文本的排列 */
-.action-buttons-container .action-button i {
-    margin-right: 8px;
-}
-
-/* 响应式设计：在小屏幕上垂直排列 */
-@media (max-width: 576px) {
-    .action-buttons-container {
-        flex-direction: column;
-    }
-}
-
-/* 动态交替按钮顺序，保证左侧是查看信息，右侧是检测病害 */
-.action-buttons-container .secondary {
-    order: 1;
-}
-
-.action-buttons-container .primary {
-    order: 2;
-}
-
-/* 可视化错误样式 */
-.visualization-error {
-    text-align: center;
-    padding: 20px;
-    background-color: #fff3f3;
-    border-radius: 8px;
-    border-left: 4px solid #f44336;
-    margin: 15px 0;
-}
-
-.visualization-error i {
-    color: #f44336;
-    font-size: 24px;
-    margin-bottom: 10px;
-}
-
-.error-details {
-    font-family: monospace;
-    padding: 8px;
-    background-color: #f8f8f8;
-    border-radius: 4px;
-    margin-top: 10px;
-    word-break: break-all;
-}
-
-/* 解决touch-action兼容性问题 */
-.element-with-touch {
-    -ms-touch-action: none;
-    touch-action: none; /* 支持Firefox 52+, Safari 13+ */
-}
-
-/* 解决user-select兼容性问题 */
-.element-with-selection {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-}
-
-/* 解决background-clip顺序问题 */
-.element-with-background-clip {
-    -webkit-background-clip: text;
-    background-clip: text;
-}
-
-/* 解决text-size-adjust兼容性问题 */
-.element-with-text-adjust {
-    -webkit-text-size-adjust: 100%;
-    -moz-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-}
-
-/* 在文件末尾添加以下样式 */
-
-/* 检测到的病害部分样式 */
-.detected-disease-section {
-    background-color: #f8f9fa;
-    border-left: 5px solid #4CAF50;
-    padding: 15px;
-    margin-bottom: 25px;
-    border-radius: 5px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.detected-disease-title {
-    color: #2E7D32;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 15px;
-    font-size: 18px;
-}
-
-.detected-disease-title i {
-    color: #4CAF50;
-}
-
-.detected-disease-card {
-    background-color: white;
-    padding: 15px;
-    border-radius: 5px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.detected-disease-card h4 {
-    color: #1565C0;
     margin-top: 0;
-    margin-bottom: 10px;
+    list-style-type: disc; /* 使用标准列表标记 */
 }
+.treatment-section li { margin-bottom: 8px; }
+.treatment-section.organic {
+    background-color: #f1f8e9; /* 淡绿色背景 */
+    border-left-color: #8bc34a; /* 有机用稍浅的绿色 */
+}
+.treatment-section.organic h4 { color: #558b2f; } /* 有机标题颜色 */
 
-.other-diseases-title {
+/* 页脚 */
+.footer {
+    text-align: center;
     margin-top: 30px;
-    margin-bottom: 15px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #e0e0e0;
-    color: #546E7A;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+    color: var(--gray-text);
+    font-size: 0.9rem;
+}
+.footer a {
+    color: var(--secondary-color);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.footer a:hover {
+    color: #1976d2; /* 悬停时深蓝色 */
+    text-decoration: underline;
 }
 
-.library-navigation {
-    margin-top: 25px;
-    padding-top: 15px;
-    border-top: 1px solid #e0e0e0;
-    display: flex;
-    justify-content: space-between;
+/* 功能引导样式 (如果需要) */
+.functional-guide {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+    z-index: 1002;
+    max-width: 450px;
+    width: 90%;
+    animation: fade-in 0.4s ease;
 }
-
-.disease-library-link {
-    margin-top: 20px;
-    display: flex;
-    justify-content: center;
-}
-
-.view-treatment-btn {
-    margin-top: 15px;
-}
-
-.treatment-header-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.treatment-actions {
-    margin-top: 25px;
-    display: flex;
-    justify-content: center;
-}
-
-/* 让疾病列表项看起来可点击 */
-.disease-list li {
-    transition: all 0.2s;
-    border-left: 0 solid #3498db;
-    padding-left: 0;
-}
-
-.disease-list li:hover {
-    background-color: #f5f9ff;
-    border-left: 4px solid #3498db;
-    padding-left: 6px;
-    cursor: pointer;
-}
+.guide-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+.guide-header h4 { margin: 0; color: var(--primary-color); font-size: 1.2rem; }
+.guide-header button { background: none; border: none; font-size: 26px; cursor: pointer; color: #aaa; padding: 0; line-height: 1;}
+.guide-header button:hover { color: var(--dark-text); }
+.guide-content ul { margin: 15px 0; padding-left: 20px; }
+.guide-content li { margin-bottom: 10px; display: flex; align-items: center; }
+.guide-content i { margin-right: 10px; color: var(--secondary-color); width: 18px; text-align: center;} /* 固定图标宽度 */
+.guide-content p:last-child { margin-top: 15px; font-weight: 500; text-align: center; }
