@@ -281,29 +281,42 @@ class DetectionPredictor(BasePredictor):
         """
         logger.info("--- Entering DetectionPredictor.predict ---") # Log entry
         try:
-            # 保存原始图像尺寸
+            # --- 修改开始: 根据输入类型分别处理 ---
+            # 1. 确保输入是 PIL Image
             if isinstance(image, str) or isinstance(image, Path):
                 original_image = Image.open(image).convert('RGB')
             elif isinstance(image, np.ndarray):
-                original_image = Image.fromarray(image)
+                original_image = Image.fromarray(image).convert('RGB') # 假设是RGB numpy数组
+            elif isinstance(image, Image.Image):
+                original_image = image # 已经是 PIL Image
             else:
-                original_image = image
-                
+                 raise TypeError(f"Predictor不支持的图像输入类型: {type(image)}")
+
             original_width, original_height = original_image.size
             logger.info(f"Original image size: {original_width}x{original_height}")
-                
-            # 预处理图像
-            image_tensor = self.preprocess_image(image).to(self.device)
-            logger.info(f"Image preprocessed, tensor shape: {image_tensor.shape}")
-            
+
+            # 2. 直接定义推理转换管道，跳过ToPILImage步骤
+            inference_transform = transforms.Compose([
+                transforms.Resize(256), 
+                transforms.CenterCrop(224), 
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
+
+            # 3. 直接对PIL图像应用转换
+            image_tensor = inference_transform(original_image).unsqueeze(0).to(self.device)
+            logger.info(f"Image transformed for inference, tensor shape: {image_tensor.shape}")
+            # --- 修改结束 ---
+
             # --- Model Inference ---
             self.model.eval() # Ensure eval mode
             with torch.no_grad():
                 logger.info("Calling model forward pass...")
-                outputs = self.model(image_tensor) # Use direct call
+                # FasterRCNN需要图像列表而非批次
+                outputs = self.model([image_tensor[0]]) # 提取单张图像并封装为列表
                 logger.info("Model forward pass completed.")
             # --- End Model Inference ---
-            
+
             # 3. 解析结果 - 重点是找到最高置信度的分类结果
             top_prediction = {"class_name": "未知", "confidence": 0.0, "label_id": -1}
             detections = [] # 保留原始检测列表
@@ -315,7 +328,7 @@ class DetectionPredictor(BasePredictor):
                 scores = output.get('scores', torch.tensor([])).cpu().numpy()
                 labels = output.get('labels', torch.tensor([])).cpu().numpy()
                 
-                logger.info(f"Raw model outputs - scores: {scores.tolist()}, labels: {labels.tolist()}") # Log raw outputs
+                logger.info(f"Raw model outputs - scores: {scores.tolist()}, labels: {labels.tolist()}")
                 
                 if len(scores) > 0:
                     # 找到最高分数的索引
@@ -323,8 +336,8 @@ class DetectionPredictor(BasePredictor):
                     top_score = scores[top_idx]
                     top_label = labels[top_idx]
                     
-                    # 标签通常从1开始，而映射从0开始 - 检查这里的逻辑
-                    class_id = top_label # 不再减1
+                    # 这里的class_id直接用模型输出的标签
+                    class_id = top_label
                     
                     logger.info(f"Highest score prediction - score: {top_score:.4f}, label: {top_label}, used class_id: {class_id}")
                     
@@ -332,10 +345,13 @@ class DetectionPredictor(BasePredictor):
                     logger.info(f"self.is_dict_mapping: {self.is_dict_mapping}, class_names type: {type(self.class_names)}")
                     logger.info(f"Available class IDs: {list(self.class_names.keys()) if self.is_dict_mapping else 'Not a dict'}")
                     
+                    # 使用类别映射获取名称
                     if self.is_dict_mapping:
                         class_name = self.class_names.get(str(class_id), f"未知类别{class_id}")
+                    elif isinstance(self.class_names, list):
+                        class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{class_id}"
                     else:
-                        class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{top_label}"
+                        class_name = f"未知类别{class_id}"
                     
                     logger.info(f"Looked up class name: {class_name}")
                     
@@ -357,13 +373,14 @@ class DetectionPredictor(BasePredictor):
             
             # 构建原始检测结果
             for box, score, label in zip(boxes, scores, labels):
-                # 标签通常从1开始，而映射从0开始 - 检查详细列表中的逻辑
-                class_id = label # 不再减1
+                class_id = label
                 
                 if self.is_dict_mapping:
                     class_name = self.class_names.get(str(class_id), f"未知类别{class_id}")
-                else:
+                elif isinstance(self.class_names, list):
                     class_name = self.class_names[class_id] if class_id < len(self.class_names) else f"类别{label}"
+                else:
+                    class_name = f"未知类别{class_id}"
                 
                 # 添加检测结果
                 detections.append({
@@ -390,14 +407,14 @@ class DetectionPredictor(BasePredictor):
             
         except Exception as e_pred:
             logger.error(f"Error inside DetectionPredictor.predict: {e_pred}", exc_info=True)
-            # Return a default error structure if something goes wrong inside predict
+            # 发生错误时返回默认结构
             return {
                 'top_prediction': {"class_name": "预测内部错误", "confidence": 0.0, "label_id": -1},
                 'detections': [],
                 'plant_type': plant_type,
                 'image_size': {
-                    'width': 0,
-                    'height': 0
+                    'width': original_width if 'original_width' in locals() else 0,
+                    'height': original_height if 'original_height' in locals() else 0
                 }
             }
     

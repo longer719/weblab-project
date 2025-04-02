@@ -633,7 +633,7 @@
                 <span class="severity-badge ${severityClass}">置信度评估: ${severityClass}</span>
             </div>
             <div class="result-details">
-                <p>识别来源: 检测器模型 (图像级分类)</p>
+                <p>识别来源: 检测器模型 (图像级检测)</p>
                 ${Object.keys(treatmentInfo).length > 0 && !treatmentInfo.error ? `
                     <div class="treatment-summary">
                         <h5>初步治疗建议:</h5>
@@ -693,9 +693,6 @@
             explainBtn.addEventListener('click', handleExplainRequest); // 调用新的处理函数
         }
         // --- 结束添加 ---
-
-        // (保留) 添加导出和清除按钮的逻辑
-        addResultActions(container);
 
         // 显示结果容器 (保留)
         container.style.display = 'block';

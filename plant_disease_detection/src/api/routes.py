@@ -458,7 +458,6 @@ def detect_diseases():
         # 添加植物类型信息到结果中
         final_response['plant_type'] = plant_type
         
-        logger.info(f"Final response to be sent: {final_response}")
         logger.info(f"检测完成: {final_response['class_name']}, 置信度: {final_response['confidence']:.4f}")
         return jsonify(final_response)
     
