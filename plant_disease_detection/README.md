@@ -177,56 +177,6 @@ API模块提供了Web服务接口：
 
 主要文件：`src/utils/disease_treatments.py`
 
-## 使用指南
-
-### 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 数据准备
-
-```bash
-python scripts/prepare_data.py
-```
-
-### 模型训练
-
-```bash
-# 训练植物分类器
-python scripts/train_classifier.py --config configs/classifier_training.yaml
-
-# 训练病害检测器(分类模式)
-python scripts/train_detector.py --config configs/detector_training.yaml
-```
-
-### 模型评估
-
-```bash
-python scripts/evaluate.py --model_path models/plant_classifier.pth --data_dir data/processed --task_type classification
-
-python scripts/evaluate.py --model_path models/disease_detector.pth --data_dir data/processed --task_type detection
-```
-
-### 模型部署
-
-```bash
-python scripts/deploy_models.py --classifier-path experiments/plant_classifier_latest --detector-path experiments/disease_detector_latest --target-dir models
-```
-
-### 启动服务
-
-```bash
-python run.py --mode serve --port 5000
-```
-
-### 单图预测
-
-```bash
-python run.py --mode predict --task classification --image path/to/image.jpg
-```
-
 ## 性能指标
 
 - **植物分类器**：
