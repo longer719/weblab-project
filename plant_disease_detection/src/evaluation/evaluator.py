@@ -9,6 +9,9 @@ from typing import Dict, List, Optional, Union, Tuple, Any
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
+import json
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from PIL import Image
 
 from src.utils.config_manager import ConfigManager
 from src.evaluation.metrics import (
@@ -236,187 +239,252 @@ class ClassificationEvaluator(BaseEvaluator):
 
 
 class DetectionEvaluator(BaseEvaluator):
-    """检测模型评估器"""
-    
-    def evaluate(self, data_loader: torch.utils.data.DataLoader, 
+    """检测模型评估器 (适配为评估图像级分类性能)"""
+
+    def evaluate(self, data_loader: torch.utils.data.DataLoader,
                  output_dir: Optional[str] = None,
                  iou_threshold: float = 0.5) -> Dict[str, Any]:
         """
-        评估检测模型
-        
+        评估检测模型（作为图像级分类器）
+
         Args:
-            data_loader: 数据加载器，用于加载评估数据
+            data_loader: 数据加载器
             output_dir: 输出目录路径
-            iou_threshold: IoU阈值
-            
+            iou_threshold: (在此模式下通常不使用)
+
         Returns:
-            包含各种评估指标的字典
+            包含图像级分类评估指标的字典
         """
         output_path = self._prepare_output_dir(output_dir)
-        
-        # 收集所有预测和真实边界框
+
+        all_preds_clf = []
+        all_targets_clf = []
         all_pred_boxes = []
         all_pred_scores = []
         all_pred_labels = []
         all_true_boxes = []
         all_true_labels = []
         all_images = []
-        
-        with torch.no_grad():
-            for batch in tqdm(data_loader, desc="评估"):
-                # 获取输入和标签
-                # 直接解包元组，处理由detection_collate_fn函数返回的([img1, img2, ...], [tgt1, tgt2, ...])格式
-                images_list, targets_list = batch  # 直接解包元组
 
-                # 将图像移动到设备，处理目标字典中的张量
-                images = [img.to(self.device) for img in images_list]
-                targets = [{k: v.to(self.device) if isinstance(v, torch.Tensor) else v
-                         for k, v in t.items()} for t in targets_list]
-                
-                # 获取预测
-                outputs = self.model(images)
-                
-                # 收集结果
-                for i in range(len(images)):
-                    # 获取单个样本预测结果
-                    pred_boxes = outputs[i]['boxes'].cpu().numpy()
-                    pred_scores = outputs[i]['scores'].cpu().numpy()
-                    pred_labels = outputs[i]['labels'].cpu().numpy()
-                    
-                    # 获取单个样本真实标签
-                    true_boxes = targets[i]['boxes'].cpu().numpy()
-                    true_labels = targets[i]['labels'].cpu().numpy()
-                    
-                    all_pred_boxes.append(pred_boxes)
-                    all_pred_scores.append(pred_scores)
-                    all_pred_labels.append(pred_labels)
-                    all_true_boxes.append(true_boxes)
-                    all_true_labels.append(true_labels)
-                    all_images.append(images[i].cpu())
-                    
-        # 计算mAP
-        iou_thresholds = self.config_manager.get('DETECTION_IOU_THRESHOLDS', 
-                                                [0.5, 0.55, 0.6, 0.65, 0.7, 0.75], 
-                                                "model")
-        
-        # 计算检测评估指标
-        map_results = mean_average_precision(
-            all_pred_boxes, all_pred_scores, all_pred_labels,
-            all_true_boxes, all_true_labels,
-            iou_thresholds=iou_thresholds
-        )
-        
-        # 计算每个类别的AP
-        class_names = data_loader.dataset.class_names if hasattr(data_loader.dataset, 'class_names') else None
-        
-        # 生成整体结果字典
-        results = {
-            'mAP': map_results['mAP'],
-            'AP_per_class': map_results['AP_per_class'],
-            'AP_per_iou': map_results['AP_per_iou'],
-            'precision': map_results['precision'],
-            'recall': map_results['recall'],
-            'pred_boxes': all_pred_boxes,
-            'pred_scores': all_pred_scores,
-            'pred_labels': all_pred_labels,
-            'true_boxes': all_true_boxes,
-            'true_labels': all_true_labels
-        }
-        
-        # 可视化部分检测结果
-        if self.config_manager.get('VISUALIZE_DETECTION_RESULTS', True, "model"):
-            self._visualize_detections(all_images, all_pred_boxes, all_pred_scores, 
-                                      all_pred_labels, class_names, output_path)
-        
-        # 保存评估摘要
-        self._save_evaluation_summary(results, output_path)
-        
-        return results
-    
-    def _visualize_detections(self, images: List[torch.Tensor], 
-                             pred_boxes: List[np.ndarray],
-                             pred_scores: List[np.ndarray], 
-                             pred_labels: List[np.ndarray],
-                             class_names: Optional[List[str]], 
-                             output_path: Path):
-        """
-        可视化检测结果
-        
-        Args:
-            images: 图像列表
-            pred_boxes: 预测边界框列表
-            pred_scores: 预测分数列表
-            pred_labels: 预测标签列表
-            class_names: 类别名称列表
-            output_path: 输出路径
-        """
-        # 获取可视化样本数
-        num_samples = min(self.config_manager.get('VISUALIZATION_SAMPLES', 5, "model"), len(images))
-        
-        # 创建可视化目录
-        vis_dir = output_path / "visualizations"
-        vis_dir.mkdir(exist_ok=True)
-        
-        # 可视化前n个样本
-        for i in range(num_samples):
-            # 转换图像格式
-            image_np = images[i].permute(1, 2, 0).numpy()
-            
-            # 如果图像是归一化的，需要反归一化
-            if image_np.max() <= 1.0:
-                image_np = (image_np * 255).astype(np.uint8)
-            
-            # 可视化检测结果
-            vis_img = visualize_detection_results(
-                image_np, 
-                torch.from_numpy(pred_boxes[i]),
-                torch.from_numpy(pred_scores[i]),
-                torch.from_numpy(pred_labels[i]),
-                class_names=class_names,
-                score_threshold=self.config_manager.get('DETECTION_SCORE_THRESHOLD', 0.5, "model")
-            )
-            
-            # 保存可视化结果
-            plt.figure(figsize=(10, 10))
-            plt.imshow(vis_img)
-            plt.axis('off')
-            plt.savefig(vis_dir / f"detection_sample_{i}.png", dpi=100, bbox_inches='tight')
-            plt.close()
-    
-    def evaluate_sample(self, image: torch.Tensor, 
-                       output_dir: Optional[str] = None) -> Dict[str, Any]:
-        """
-        评估单个样本
-        
-        Args:
-            image: 输入图像张量
-            output_dir: 输出目录路径
-            
-        Returns:
-            包含评估结果的字典
-        """
-        if len(image.shape) == 3:
-            # 添加批次维度
-            image = image.unsqueeze(0)
-            
         with torch.no_grad():
-            # 获取预测
-            image = image.to(self.device)
-            outputs = self.model(image)
-            
-            # 提取第一个样本的结果
-            pred_boxes = outputs[0]['boxes'].cpu()
-            pred_scores = outputs[0]['scores'].cpu()
-            pred_labels = outputs[0]['labels'].cpu()
-            
-        # 将结果转换为字典
-        result = {
-            'boxes': pred_boxes.numpy(),
-            'scores': pred_scores.numpy(),
-            'labels': pred_labels.numpy()
-        }
-        
-        return result
+            pbar = tqdm(data_loader, desc="评估检测器(分类模式)")
+            for batch in pbar:
+                images_list, targets_list = batch
+                images = [img.to(self.device) for img in images_list]
+                targets_for_eval = [{'labels': t['labels'].to(self.device)} for t in targets_list]
+
+                outputs = self.model(images)
+
+                for i in range(len(outputs)):
+                    output = outputs[i]
+                    true_label = targets_list[i]['labels'][0].item()
+                    all_targets_clf.append(true_label)
+
+                    pred_scores_tensor = output.get('scores')
+                    pred_labels_tensor = output.get('labels')
+
+                    if pred_scores_tensor is not None and pred_labels_tensor is not None and len(pred_scores_tensor) > 0:
+                        top_idx = torch.argmax(pred_scores_tensor)
+                        pred_label = pred_labels_tensor[top_idx].item()
+                        all_preds_clf.append(pred_label)
+                    else:
+                        all_preds_clf.append(-1)
+
+                    all_pred_boxes.append(output.get('boxes', torch.tensor([])).cpu().numpy())
+                    all_pred_scores.append(output.get('scores', torch.tensor([])).cpu().numpy())
+                    all_pred_labels.append(output.get('labels', torch.tensor([])).cpu().numpy())
+                    all_true_boxes.append(targets_list[i]['boxes'].cpu().numpy())
+                    all_true_labels.append(targets_list[i]['labels'].cpu().numpy())
+                    if len(all_images) < 5:
+                        all_images.append(images_list[i].cpu())
+
+        results = {}
+        all_preds_clf = np.array(all_preds_clf)
+        all_targets_clf = np.array(all_targets_clf)
+        valid_mask_clf = all_preds_clf != -1
+
+        if np.any(valid_mask_clf):
+             preds_valid = all_preds_clf[valid_mask_clf]
+             targets_valid = all_targets_clf[valid_mask_clf]
+
+             if len(preds_valid) > 0:
+                 results['accuracy'] = accuracy_score(targets_valid, preds_valid)
+                 results['precision'] = precision_score(targets_valid, preds_valid, average='macro', zero_division=0)
+                 results['recall'] = recall_score(targets_valid, preds_valid, average='macro', zero_division=0)
+                 results['f1_score'] = f1_score(targets_valid, preds_valid, average='macro', zero_division=0)
+                 results['confusion_matrix'] = confusion_matrix(targets_valid, preds_valid)
+                 logging.info(f"图像级分类评估: Acc={results['accuracy']:.4f}, P={results['precision']:.4f}, R={results['recall']:.4f}, F1={results['f1_score']:.4f}")
+             else:
+                 logging.warning("有效预测为空，无法计算分类指标。")
+                 results = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0, 'confusion_matrix': None}
+        else:
+             logging.warning("没有任何有效预测，无法计算分类指标。")
+             results = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0, 'confusion_matrix': None}
+
+        cm = results.get('confusion_matrix')
+        if cm is not None:
+            logging.info("尝试绘制混淆矩阵...")
+            model_dir = Path('models')
+            mapping_path = model_dir / 'plant_classes.json'
+            id_to_name_map = {}
+            if mapping_path.exists():
+                try:
+                    with open(mapping_path, 'r', encoding='utf-8') as f:
+                        id_to_name_map = json.load(f)
+                    logging.info(f"成功加载类别映射文件: {mapping_path}")
+                except Exception as e:
+                    logging.error(f"加载类别映射文件失败: {e}")
+            else:
+                logging.warning(f"类别映射文件未找到: {mapping_path}")
+
+            num_classes_in_cm = cm.shape[0]
+            class_names_list = []
+            all_possible_dataset_names = data_loader.dataset.class_names if hasattr(data_loader.dataset, 'class_names') and isinstance(data_loader.dataset.class_names, list) else None
+
+            for i in range(num_classes_in_cm):
+                class_name = id_to_name_map.get(str(i))
+
+                if not class_name and all_possible_dataset_names and i < len(all_possible_dataset_names):
+                    class_name = all_possible_dataset_names[i]
+                    logging.debug(f"ID {i} 未在映射中找到，使用数据集名称: {class_name}")
+
+                if not class_name:
+                    class_name = f'类别_{i}'
+                    logging.warning(f"ID {i} 名称未知，使用默认: {class_name}")
+
+                class_names_list.append(class_name)
+
+            logging.info(f"混淆矩阵使用的类别名称数量: {len(class_names_list)}")
+
+            try:
+                # 尝试使用系统已安装的文泉驿微米黑字体和其他回退选项
+                plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', '文泉驛微米黑', '文泉驿微米黑', 
+                                                   'SimHei', 'DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
+                plt.rcParams['axes.unicode_minus'] = False
+                logging.info("尝试设置字体以支持中文显示")
+            except Exception as font_e:
+                logging.warning(f"设置字体失败: {font_e}. 将使用系统默认字体。")
+
+            try:
+                # 增加标签旋转角度并确保有足够的标签间距
+                fig_cm = plot_confusion_matrix(cm, class_names_list, normalize=False, 
+                                              figsize=(24, 20))  # 增大图表大小
+                
+                # 在保存前手动旋转X轴标签
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()  # 确保旋转的标签有足够空间
+                
+                cm_path = output_path / "confusion_matrix_detector_clf.png"
+                fig_cm.savefig(cm_path, dpi=100, bbox_inches='tight')
+                plt.close(fig_cm)
+                logging.info(f"混淆矩阵图已保存: {cm_path}")
+
+                # 归一化混淆矩阵
+                fig_cm_norm = plot_confusion_matrix(cm, class_names_list, normalize=True, 
+                                                   figsize=(24, 20))
+                
+                # 同样旋转标签
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                
+                cm_norm_path = output_path / "confusion_matrix_detector_clf_normalized.png"
+                fig_cm_norm.savefig(cm_norm_path, dpi=100, bbox_inches='tight')
+                plt.close(fig_cm_norm)
+                logging.info(f"归一化混淆矩阵图已保存: {cm_norm_path}")
+            except Exception as plot_e:
+                logging.error(f"绘制混淆矩阵时出错: {plot_e}")
+                import traceback
+                traceback.print_exc()
+                
+                # 尝试使用简化方式绘制混淆矩阵
+                try:
+                    logging.info("尝试使用简化方式绘制混淆矩阵...")
+                    plt.figure(figsize=(20, 16))
+                    plt.imshow(cm, interpolation='nearest', cmap='Blues')
+                    plt.colorbar()
+                    plt.title("Confusion Matrix")
+                    
+                    # 使用数字索引作为标签
+                    plt.xticks(np.arange(len(class_names_list)), 
+                               [f"#{i}" for i in range(len(class_names_list))], 
+                               rotation=45)
+                    plt.yticks(np.arange(len(class_names_list)), 
+                               [f"#{i}" for i in range(len(class_names_list))])
+                    
+                    simple_cm_path = output_path / "confusion_matrix_simple.png"
+                    plt.tight_layout()
+                    plt.savefig(simple_cm_path, bbox_inches='tight')
+                    plt.close()
+                    logging.info(f"简化混淆矩阵已保存: {simple_cm_path}")
+                    
+                    # 额外保存一个类别对照文件
+                    with open(output_path / "class_index_mapping.txt", "w", encoding="utf-8") as f:
+                        for i, name in enumerate(class_names_list):
+                            f.write(f"#{i}: {name}\n")
+                    logging.info(f"类别索引映射已保存: {output_path / 'class_index_mapping.txt'}")
+                except Exception as e:
+                    logging.error(f"尝试简化绘图也失败了: {e}")
+        else:
+            logging.warning("无混淆矩阵数据，跳过绘图。")
+
+        if self.config_manager.get('VISUALIZE_DETECTION_RESULTS', False, "model") and len(all_images) > 0:
+            self._visualize_original_detections(
+                all_images, all_pred_boxes, all_pred_scores, all_pred_labels,
+                id_to_name_map,
+                output_path
+            )
+
+        self._save_evaluation_summary(results, output_path)
+
+        return results
+
+    def _visualize_original_detections(self, images: List[torch.Tensor],
+                             pred_boxes: List[np.ndarray],
+                             pred_scores: List[np.ndarray],
+                             pred_labels: List[np.ndarray],
+                             class_names_map: Optional[Dict[str, str]],
+                             output_path: Path,
+                             max_images = 5, score_threshold = 0.1):
+        """
+        (辅助函数) 可视化原始检测框（主要用于调试）
+        """
+        logging.info("开始可视化原始检测结果（用于调试）...")
+        vis_dir = output_path / "visualizations_raw_detection"
+        vis_dir.mkdir(exist_ok=True)
+        num_samples = min(max_images, len(images))
+
+        for i in range(num_samples):
+             image_np = images[i].permute(1, 2, 0).numpy()
+             if image_np.max() <= 1.0:
+                  mean = np.array([0.485, 0.456, 0.406])
+                  std = np.array([0.229, 0.224, 0.225])
+                  image_np = image_np * std + mean
+                  image_np = np.clip(image_np, 0, 1)
+             image_np = (image_np * 255).astype(np.uint8)
+
+             current_class_names = []
+             if class_names_map:
+                  max_id = 0
+                  if pred_labels[i].size > 0:
+                       max_id = int(np.max(pred_labels[i]))
+                  current_class_names = [class_names_map.get(str(j), f'ID_{j}') for j in range(max_id + 1)]
+
+             vis_img = visualize_detection_results(
+                 image_np,
+                 torch.from_numpy(pred_boxes[i]),
+                 torch.from_numpy(pred_scores[i]),
+                 torch.from_numpy(pred_labels[i]),
+                 class_names=current_class_names,
+                 score_threshold=score_threshold
+             )
+
+             save_name = vis_dir / f"raw_detection_sample_{i}.png"
+             try:
+                  Image.fromarray(vis_img).save(save_name)
+             except Exception as e:
+                  logging.error(f"保存可视化图像失败 {save_name}: {e}")
+
+        logging.info(f"原始检测结果可视化已保存至: {vis_dir}")
 
 
 def evaluate_model(model: nn.Module, data_loader: torch.utils.data.DataLoader, 
