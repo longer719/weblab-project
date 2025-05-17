@@ -99,10 +99,9 @@ class GradCAM:
             target_layer_name = self.config_manager.get('DETECTOR_GRADCAM_TARGET_LAYER', 'detector.backbone.body.layer4', "model")
             logger.info(f"使用默认目标层: {target_layer_name}")
 
-        # --- 修改：在包装后的模型上查找目标层 ---
+        # --- 在包装后的模型上查找目标层 ---
         self.model_wrapper = DetectionModelWrapperForCAM(self.original_model)
         self.target_layer_module = self._get_layer(self.original_model, target_layer_name) # 查找层仍然在原始模型上进行
-        # --- 修改结束 ---
 
         if self.target_layer_module is None:
             logging.warning(f"找不到指定的层 '{target_layer_name}'，尝试自动查找...")
@@ -112,13 +111,12 @@ class GradCAM:
 
         if GRADCAM_AVAILABLE:
             try:
-                # --- 修改：在包装器上初始化 GradCAM ---
+                # --- 在包装器上初始化 GradCAM ---
                 self.cam_executor = OfficialGradCAM(
                     model=self.model_wrapper, # 使用包装器
                     target_layers=[self.target_layer_module]
                 )
                 logging.info("官方 pytorch-grad-cam 执行器初始化成功 (使用模型包装器)")
-                # --- 修改结束 ---
             except Exception as e:
                 logging.error(f"初始化官方 GradCAM 失败: {e}")
                 self.cam_executor = None

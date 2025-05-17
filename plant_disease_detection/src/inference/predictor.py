@@ -277,11 +277,11 @@ class DetectionPredictor(BasePredictor):
         
     def predict(self, image: Union[str, np.ndarray, Image.Image], plant_type: str = None) -> Dict[str, Any]:
         """
-        执行"伪检测"（图像级分类），返回最高置信度的预测和原始检测信息。
+        执行"检测"（图像级分类），返回最高置信度的预测和原始检测信息。
         """
         logger.info("--- Entering DetectionPredictor.predict ---") # Log entry
         try:
-            # --- 修改开始: 根据输入类型分别处理 ---
+            # --- 根据输入类型分别处理 ---
             # 1. 确保输入是 PIL Image
             if isinstance(image, str) or isinstance(image, Path):
                 original_image = Image.open(image).convert('RGB')

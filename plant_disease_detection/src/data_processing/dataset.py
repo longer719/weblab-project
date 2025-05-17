@@ -280,5 +280,5 @@ class DetectionDataset(BaseDataset):
             'iscrowd': torch.zeros((len(boxes),), dtype=torch.int64)
         }
         
-        # 修改这里: 只返回图像张量和目标字典
+        # 只返回图像张量和目标字典
         return image, target

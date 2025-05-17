@@ -10,11 +10,8 @@ data:
   test_split: 0.2
   num_workers: 16  # 增加工作线程
 
-# # 注释掉数据过滤信息，使用全部数据
-# data_filter: "Corn,Grape,Orange" 
-# trained_plants: "玉米、葡萄、橙子"
 
-# 模型配置 - 适合全数据集的设置
+# 模型配置 
 model:
   backbone: "resnet50"  # 轻量级骨干网络，检测任务足够
   num_classes: 38       # 全部PlantVillage类别
@@ -24,8 +21,6 @@ model:
   # 禁用自动计算锚框
   compute_anchors: false
   # 移除自定义锚框配置，使用默认设置
-  # anchor_sizes: ...
-  # anchor_ratios: ...
   box_score_thresh: 0.3
   box_nms_thresh: 0.55
   rpn_nms_thresh: 0.7
@@ -38,7 +33,7 @@ train:
   scheduler: "CosineAnnealingLR"  
   scheduler_params:             
     eta_min: 0.0000005         
-  weight_decay: 0.0005  
+  weight_decay: 0.0005  # 检测器使用较小的权重衰减值
   mixed_precision: true  
   warmup_epochs: 3       
   backbone_lr: 0.00005   
@@ -52,8 +47,8 @@ train:
   early_stopping:
     patience: 10         # 可根据需要调整
     delta: 0.001
-    mode: 'max'          # 修改为max，因为accuracy/f1越高越好
-    monitor: 'accuracy'  # 修改为accuracy，监控分类准确率
+    mode: 'max'          # 修改为max，accuracy/f1越高越好
+    monitor: 'accuracy'  # 用accuracy，监控分类准确率
   device: "cuda"
 
 # 实验命名

@@ -1,5 +1,5 @@
 # src/training/trainer.py
-
+#通用训练器，分别支持分类和检测任务
 
 import os
 import sys
